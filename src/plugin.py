@@ -915,8 +915,6 @@ class Plugin:
                         running_flag = redis_client.get("prometheus_exporter:server_running")
                         if running_flag == "1" or running_flag == b"1":
                             logger.debug("Prometheus exporter: Server already running (detected via Redis), skipping auto-start")
-                            # Mark auto-start as completed since server is already running
-                            redis_client.set("prometheus_exporter:autostart_completed", "1")
                             fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
                             lock_fd.close()
                             return
@@ -935,17 +933,9 @@ class Plugin:
                 except Exception as e:
                     logger.warning(f"Could not read initial auto-start setting: {e}")
                 
-                # If auto-start was not enabled initially, exit now and mark as completed
+                # If auto-start was not enabled initially, exit now
                 if not initial_auto_start_enabled:
                     logger.info("Prometheus exporter: Auto-start disabled at startup, will not auto-start")
-                    # Mark auto-start as completed
-                    try:
-                        from core.utils import RedisClient
-                        redis_client = RedisClient.get_client()
-                        if redis_client:
-                            redis_client.set("prometheus_exporter:autostart_completed", "1")
-                    except Exception as e:
-                        logger.debug(f"Could not set auto-start completion flag: {e}")
                     fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
                     lock_fd.close()
                     return
@@ -986,27 +976,11 @@ class Plugin:
                             server = MetricsServer(self.collector, port=port, host=host)
                             if server.start(settings=settings_dict):
                                 logger.info(f"Auto-start successful on http://{host}:{port}/metrics")
-                                # Mark auto-start as completed
-                                try:
-                                    from core.utils import RedisClient
-                                    redis_client = RedisClient.get_client()
-                                    if redis_client:
-                                        redis_client.set("prometheus_exporter:autostart_completed", "1")
-                                except Exception as e:
-                                    logger.debug(f"Could not set auto-start completion flag: {e}")
                                 # Keep lock held to prevent other workers from trying
                                 return
                             else:
                                 # Start failed but port check passed - unexpected, stop retrying
                                 logger.warning(f"Auto-start failed unexpectedly on attempt {attempt + 1}")
-                                # Mark auto-start as completed even on failure
-                                try:
-                                    from core.utils import RedisClient
-                                    redis_client = RedisClient.get_client()
-                                    if redis_client:
-                                        redis_client.set("prometheus_exporter:autostart_completed", "1")
-                                except Exception as e:
-                                    logger.debug(f"Could not set auto-start completion flag: {e}")
                                 fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
                                 lock_fd.close()
                                 return
@@ -1016,14 +990,6 @@ class Plugin:
                         # On any exception, continue to next retry unless it's the last one
                         if attempt == max_retries - 1:
                             logger.warning("Prometheus exporter: Auto-start failed after all retries. Use 'Start Metrics Server' button to start manually.")
-                            # Mark auto-start as completed even after all retries fail
-                            try:
-                                from core.utils import RedisClient
-                                redis_client = RedisClient.get_client()
-                                if redis_client:
-                                    redis_client.set("prometheus_exporter:autostart_completed", "1")
-                            except Exception as e:
-                                logger.debug(f"Could not set auto-start completion flag: {e}")
                             fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
                             lock_fd.close()
                             return
