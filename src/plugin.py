@@ -474,9 +474,9 @@ class PrometheusMetricsCollector:
         include_urls = settings and settings.get('include_source_urls', False)
         
         try:
-            # Total EPG sources
-            total_sources = EPGSource.objects.count()
-            active_sources = EPGSource.objects.filter(is_active=True).count()
+            # Total EPG sources (exclude dummy)
+            total_sources = EPGSource.objects.exclude(source_type='dummy').count()
+            active_sources = EPGSource.objects.filter(is_active=True).exclude(source_type='dummy').count()
             
             metrics.append("# HELP dispatcharr_epg_sources Total number of EPG sources")
             metrics.append("# TYPE dispatcharr_epg_sources gauge")
@@ -489,14 +489,14 @@ class PrometheusMetricsCollector:
             
             for status_choice in EPGSource.STATUS_CHOICES:
                 status_value = status_choice[0]
-                count = EPGSource.objects.filter(status=status_value).count()
+                count = EPGSource.objects.filter(status=status_value).exclude(source_type='dummy').count()
                 metrics.append(f'dispatcharr_epg_source_status{{status="{status_value}"}} {count}')
             
-            # Individual EPG source info
+            # Individual EPG source info (exclude dummy)
             metrics.append("# HELP dispatcharr_epg_source_info Information about each EPG source")
             metrics.append("# TYPE dispatcharr_epg_source_info gauge")
             
-            for source in EPGSource.objects.all():
+            for source in EPGSource.objects.exclude(source_type='dummy'):
                 source_name = source.name.replace('"', '\\"').replace('\\', '\\\\')
                 source_type = source.source_type or 'unknown'
                 status = source.status
@@ -518,7 +518,7 @@ class PrometheusMetricsCollector:
                     source_url = source.url.replace('"', '\\"').replace('\\', '\\\\')
                     labels.append(f'url="{source_url}"')
                 
-                metrics.append(f'dispatcharr_epg_source_info{{{','.join(labels)}}} 1')
+                metrics.append(f'dispatcharr_epg_source_info{{{",".join(labels)}}} 1')
         
         except Exception as e:
             logger.error(f"Error collecting EPG metrics: {e}")
