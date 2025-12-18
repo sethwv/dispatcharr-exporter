@@ -40,9 +40,6 @@ jobs:
         run: |
           chmod +x package.sh
           ./package.sh
-          # Rename to include version
-          VERSION="${{ steps.version.outputs.VERSION }}"
-          mv prometheus_exporter.zip prometheus_exporter-${VERSION}.zip
       
       - name: Upload release asset
         env:

@@ -1,44 +1,63 @@
 #!/bin/bash
-# Package Dispatcharr Prometheus Exporter Plugin for Web UI Import
+# Package Dispatcharr Prometheus Exporter Plugin
 
-echo "=== Packaging Dispatcharr Prometheus Exporter Plugin ==="
-echo ""
+set -e
 
-# Plugin directory
-PLUGIN_DIR="prometheus_exporter"
-OUTPUT_FILE="prometheus_exporter.zip"
+SRC_DIR="src"
+PLUGIN_NAME="prometheus_exporter"
+OUTPUT_FILE="dispatcharr_exporter.zip"
+TEMP_DIR=$(mktemp -d)
+VERSION=""
 
-# Check if plugin directory exists
-if [ ! -d "$PLUGIN_DIR" ]; then
-    echo "Error: Plugin directory not found: $PLUGIN_DIR"
+# Verify source directory exists
+if [ ! -d "$SRC_DIR" ]; then
+    echo "Error: Source directory not found: $SRC_DIR"
     exit 1
 fi
 
-# Remove old package if exists
-if [ -f "$OUTPUT_FILE" ]; then
-    echo "Removing existing package..."
-    rm "$OUTPUT_FILE"
-fi
+echo "=== Packaging Dispatcharr Prometheus Exporter ==="
 
-# Create zip package
-echo "Creating package: $OUTPUT_FILE"
-zip -r "$OUTPUT_FILE" "$PLUGIN_DIR" -x "*.pyc" -x "*__pycache__*" -x "*.DS_Store"
-
-if [ $? -eq 0 ]; then
-    echo ""
-    echo "=== Package Created Successfully! ==="
-    echo ""
-    echo "File: $OUTPUT_FILE"
-    echo "Size: $(du -h "$OUTPUT_FILE" | cut -f1)"
-    echo ""
-    echo "Installation steps:"
-    echo "1. Open your Dispatcharr web UI"
-    echo "2. Navigate to the Plugins page"
-    echo "3. Click the 'Import' button"
-    echo "4. Upload $OUTPUT_FILE"
-    echo "5. Enable the plugin and configure settings"
-    echo ""
+# Set dev version if not in CI
+if [ -z "$GITHUB_ACTIONS" ]; then
+    GIT_HASH=$(git rev-parse --short=8 HEAD 2>/dev/null || echo "00000000")
+    TIMESTAMP=$(date +%Y%m%d%H%M%S)
+    VERSION="dev-${GIT_HASH}-${TIMESTAMP}"
+    
+    echo "Version: $VERSION"
+    
+    # Update version in plugin.py
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        sed -i '' "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" "$SRC_DIR/plugin.py"
+    else
+        sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" "$SRC_DIR/plugin.py"
+    fi
 else
-    echo "Error: Failed to create package"
-    exit 1
+    # Extract version from plugin.py (set by workflow)
+    VERSION=$(grep -oP '"version": "\K[^"]+' "$SRC_DIR/plugin.py" 2>/dev/null || grep -o '"version": "[^"]*"' "$SRC_DIR/plugin.py" | cut -d'"' -f4)
+    echo "Version: $VERSION"
 fi
+
+# Clean up old packages
+[ -f "$OUTPUT_FILE" ] && rm "$OUTPUT_FILE"
+rm -f dispatcharr_exporter-*.zip 2>/dev/null || true
+
+# Copy source to temp dir with plugin name
+cp -r "$SRC_DIR" "$TEMP_DIR/$PLUGIN_NAME"
+
+# Create package
+echo "Creating package..."
+cd "$TEMP_DIR"
+zip -q -r "$OLDPWD/$OUTPUT_FILE" "$PLUGIN_NAME" -x "*.pyc" -x "*__pycache__*" -x "*.DS_Store"
+cd "$OLDPWD"
+
+# Clean up temp directory
+rm -rf "$TEMP_DIR"
+
+# Rename with version
+if [ -n "$VERSION" ] && [ "$VERSION" != "dev" ]; then
+    VERSIONED_FILE="dispatcharr_exporter-${VERSION}.zip"
+    mv "$OUTPUT_FILE" "$VERSIONED_FILE"
+    OUTPUT_FILE="$VERSIONED_FILE"
+fi
+
+echo "✓ Package created: $OUTPUT_FILE ($(du -h "$OUTPUT_FILE" | cut -f1))"
