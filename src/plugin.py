@@ -167,8 +167,8 @@ class PrometheusMetricsCollector:
                     f'stream_count="{stream_count}"'
                 ]
                 
-                # Add username for XC-type accounts
-                if account_type == 'XC' and hasattr(account, 'username') and account.username:
+                # Optionally add username for XC-type accounts
+                if include_urls and account_type == 'XC' and hasattr(account, 'username') and account.username:
                     username = account.username.replace('"', '\\"').replace('\\', '\\\\')
                     labels.append(f'username="{username}"')
                 
@@ -177,7 +177,7 @@ class PrometheusMetricsCollector:
                     server_url = account.server_url.replace('"', '\\"').replace('\\', '\\\\')
                     labels.append(f'server_url="{server_url}"')
                 
-                metrics.append(f'dispatcharr_m3u_account_info{{{','.join(labels)}}} 1')
+                metrics.append(f'dispatcharr_m3u_account_info{{{",".join(labels)}}} 1')
             
         except Exception as e:
             logger.error(f"Error collecting M3U account metrics: {e}")
