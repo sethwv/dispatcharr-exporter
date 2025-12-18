@@ -4,7 +4,7 @@
 set -e
 
 SRC_DIR="src"
-PLUGIN_NAME="prometheus_exporter"
+PLUGIN_NAME="dispatcharr_exporter"
 OUTPUT_FILE="dispatcharr-exporter.zip"
 TEMP_DIR=$(mktemp -d)
 VERSION=""
@@ -21,7 +21,7 @@ echo "=== Packaging Dispatcharr Prometheus Exporter ==="
 if [ -z "$GITHUB_ACTIONS" ]; then
     GIT_HASH=$(git rev-parse --short=8 HEAD 2>/dev/null || echo "00000000")
     TIMESTAMP=$(date +%Y%m%d%H%M%S)
-    VERSION="dev-${GIT_HASH}-${TIMESTAMP}"
+    VERSION="-dev-${GIT_HASH}-${TIMESTAMP}"
     
     echo "Version: $VERSION"
     

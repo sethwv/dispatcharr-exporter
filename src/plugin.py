@@ -23,10 +23,10 @@ logger = logging.getLogger(__name__)
 
 # Plugin configuration - update all settings here
 PLUGIN_CONFIG = {
-    "version": "dev-1392c942-20251218112303",
-    "name": "Prometheus Exporter",
+    "version": "-dev-43b4885f-20251218115631",
+    "name": "Dispatcharr Exporter",
     "author": "SethWV",
-    "description": "Expose Dispatcharr metrics in Prometheus exporter-compatible format for monitoring. Configuration changes require a restart of the metrics server. Find new releases at https://github.com/sethwv/dispatcharr-exporter/releases/.",
+    "description": "Expose Dispatcharr metrics in Prometheus exporter-compatible format for monitoring. Configuration changes require a restart of the metrics server. https://github.com/sethwv/dispatcharr-exporter/releases/",
     "default_port": 9192,
     "default_host": "0.0.0.0",
     "auto_start_default": False,
@@ -1272,7 +1272,7 @@ class Plugin:
                 else:
                     return {
                         "status": "success",
-                        "message": f"Server is not running (would use {endpoint})"
+                        "message": f"Server is not running"
                     }
             except Exception as e:
                 logger_ctx.error(f"Error checking server status: {e}", exc_info=True)

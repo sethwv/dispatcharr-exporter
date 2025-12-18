@@ -8,6 +8,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -31,19 +35,23 @@ jobs:
             IS_RELEASE="true"
             # Check if prerelease by looking for existing release
             PRERELEASE=$(gh api repos/${{ github.repository }}/releases/tags/$TAG --jq '.prerelease' 2>/dev/null || echo "false")
-            # Strip v prefix from version
-            VERSION="${VERSION#v}"
+            # If tag starts with 'v', strip it; otherwise prefix with dash
+            if [[ "$VERSION" == v* ]]; then
+              VERSION="${VERSION#v}"
+            else
+              VERSION="-${VERSION}"
+            fi
             if [ "$PRERELEASE" = "true" ]; then
               VERSION="${VERSION}-pre"
             fi
             echo "TAG=$TAG" >> $GITHUB_OUTPUT
           else
-            # Not a tag, use branch-hash-timestamp format
+            # Not a tag, use branch-hash-timestamp format with dash prefix
             BRANCH="${GITHUB_REF#refs/heads/}"
             BRANCH="${BRANCH//\//-}"  # Replace slashes with dashes
             HASH=$(git rev-parse --short=8 HEAD)
             TIMESTAMP=$(date +%Y%m%d%H%M%S)
-            VERSION="${BRANCH}-${HASH}-${TIMESTAMP}"
+            VERSION="-${BRANCH}-${HASH}-${TIMESTAMP}"
             IS_RELEASE="false"
           fi
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
@@ -66,13 +74,13 @@ jobs:
         run: |
           mkdir -p artifact-upload
           # Copy the plugin directory for artifact
-          cp -r src artifact-upload/prometheus_exporter
+          cp -r src artifact-upload/dispatcharr_exporter
       
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
           name: dispatcharr-exporter-${{ steps.version.outputs.VERSION }}
-          path: artifact-upload/prometheus_exporter
+          path: artifact-upload/dispatcharr_exporter
       
       - name: Upload to release
         if: steps.version.outputs.IS_RELEASE == 'true'

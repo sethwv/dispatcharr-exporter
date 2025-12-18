@@ -38,6 +38,27 @@ Look for the asset named `dispatcharr-exporter-X.X.X.zip` and download it.
 
 3. **⚠️ IMPORTANT: Restart Dispatcharr** after installation
 
+### Updating the Plugin
+
+> **Note:** The Dispatcharr plugin system is currently in early development. To update to a newer version:
+
+1. In the Dispatcharr web UI, go to the **Plugins** page and disable/remove the plugin
+2. Download the latest version from [releases](https://github.com/sethwv/dispatcharr-exporter/releases/latest)
+3. Import the new version via the **"Import"** button
+4. **⚠️ IMPORTANT: Restart Dispatcharr** for the update to take effect
+
+### Uninstalling the Plugin
+
+> **Note:** Due to the early state of the plugin system, you may need to manually remove files:
+
+1. Stop Dispatcharr
+2. Remove the plugin directory:
+   ```bash
+   rm -rf /path/to/dispatcharr/data/plugins/prometheus_exporter*
+   ```
+3. Start Dispatcharr
+4. Go to the **Plugins** page and remove the plugin from the UI (if still listed)
+
 ## Usage
 
 ### Starting the Metrics Server
