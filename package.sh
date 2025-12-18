@@ -55,7 +55,9 @@ rm -rf "$TEMP_DIR"
 
 # Rename with version
 if [ -n "$VERSION" ] && [ "$VERSION" != "dev" ]; then
-    VERSIONED_FILE="dispatcharr-exporter-${VERSION}.zip"
+    # Strip leading dash from version for filename
+    FILE_VERSION="${VERSION#-}"
+    VERSIONED_FILE="dispatcharr-exporter-${FILE_VERSION}.zip"
     mv "$OUTPUT_FILE" "$VERSIONED_FILE"
     OUTPUT_FILE="$VERSIONED_FILE"
 fi
