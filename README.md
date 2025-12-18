@@ -178,32 +178,6 @@ scrape_configs:
    - Look for the `dispatcharr` job
    - Should show as "UP" with last scrape time
 
-### Docker Compose Example
-
-If running Prometheus in Docker:
-
-```yaml
-version: '3.8'
-services:
-  prometheus:
-    image: prom/prometheus:latest
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
-      - prometheus-data:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-
-volumes:
-  prometheus-data:
-```
-
-Use `host.docker.internal:9192` as the target if Dispatcharr is on the host machine.
-
 ## Example Metrics Output
 
 ```prometheus
@@ -240,57 +214,6 @@ dispatcharr_active_streams 12
 # HELP dispatcharr_stream_info Detailed information about active streams
 # TYPE dispatcharr_stream_info gauge
 dispatcharr_stream_info{stream_index="0",channel_uuid="abc-123",channel_name="ESPN",channel_number="501",stream_id="789",stream_name="ESPN HD",profile_id="1",profile_name="Default",logo_url="http://example.com/logo.png"} 1
-```
-
-## Example Prometheus Queries
-
-### Connection Monitoring
-
-```promql
-# Alert when any profile reaches 90% of max connections
-dispatcharr_profile_connection_usage > 0.9
-
-# Profiles currently at capacity
-dispatcharr_profile_connection_usage >= 1.0
-
-# Average connection usage across all profiles
-avg(dispatcharr_profile_connection_usage) * 100
-```
-
-### Stream Analytics
-
-```promql
-# Total active streams
-dispatcharr_active_streams
-
-# Streams by profile
-count by (profile_name) (dispatcharr_stream_info)
-
-# Channels with active streams
-count(dispatcharr_stream_info) by (channel_name)
-```
-
-### M3U Account Health
-
-```promql
-# Count of M3U accounts by status
-sum by (status) (dispatcharr_m3u_account_status)
-
-# Accounts in error state
-dispatcharr_m3u_account_status{status="error"}
-
-# Active vs total accounts
-dispatcharr_m3u_accounts{status="active"} / dispatcharr_m3u_accounts{status="total"}
-```
-
-### VOD Monitoring (if enabled)
-
-```promql
-# Total VOD sessions
-dispatcharr_vod_sessions
-
-# VOD stream activity
-dispatcharr_vod_active_streams
 ```
 
 ## License

@@ -23,10 +23,10 @@ logger = logging.getLogger(__name__)
 
 # Plugin configuration - update all settings here
 PLUGIN_CONFIG = {
-    "version": "dev-5763b5a7-20251218111754",
+    "version": "dev-1392c942-20251218112303",
     "name": "Prometheus Exporter",
     "author": "SethWV",
-    "description": "Expose Dispatcharr metrics in Prometheus exporter-compatible format for monitoring. Configuration changes require a restart of the metrics server.",
+    "description": "Expose Dispatcharr metrics in Prometheus exporter-compatible format for monitoring. Configuration changes require a restart of the metrics server. Find new releases at https://github.com/sethwv/dispatcharr-exporter/releases/.",
     "default_port": 9192,
     "default_host": "0.0.0.0",
     "auto_start_default": False,

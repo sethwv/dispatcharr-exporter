@@ -5,7 +5,7 @@ set -e
 
 SRC_DIR="src"
 PLUGIN_NAME="prometheus_exporter"
-OUTPUT_FILE="dispatcharr_exporter.zip"
+OUTPUT_FILE="dispatcharr-exporter.zip"
 TEMP_DIR=$(mktemp -d)
 VERSION=""
 
@@ -39,7 +39,7 @@ fi
 
 # Clean up old packages
 [ -f "$OUTPUT_FILE" ] && rm "$OUTPUT_FILE"
-rm -f dispatcharr_exporter-*.zip 2>/dev/null || true
+rm -f dispatcharr-exporter-*.zip 2>/dev/null || true
 
 # Copy source to temp dir with plugin name
 cp -r "$SRC_DIR" "$TEMP_DIR/$PLUGIN_NAME"
@@ -55,7 +55,7 @@ rm -rf "$TEMP_DIR"
 
 # Rename with version
 if [ -n "$VERSION" ] && [ "$VERSION" != "dev" ]; then
-    VERSIONED_FILE="dispatcharr_exporter-${VERSION}.zip"
+    VERSIONED_FILE="dispatcharr-exporter-${VERSION}.zip"
     mv "$OUTPUT_FILE" "$VERSIONED_FILE"
     OUTPUT_FILE="$VERSIONED_FILE"
 fi
