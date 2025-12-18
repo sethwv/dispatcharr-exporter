@@ -1,0 +1,52 @@
+name: Build and Release Plugin
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      
+      - name: Set version
+        id: version
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/}"
+          # Add -pre suffix if this is a prerelease
+          if [ "${{ github.event.release.prerelease }}" = "true" ]; then
+            VERSION="${VERSION}-pre"
+          fi
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "Plugin version: $VERSION"
+      
+      - name: Update version in plugin.py
+        run: |
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" prometheus_exporter/plugin.py
+          
+      - name: Package plugin
+        run: |
+          chmod +x package.sh
+          ./package.sh
+          # Rename to include version
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          mv prometheus_exporter.zip prometheus_exporter-${VERSION}.zip
+      
+      - name: Upload release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          gh release upload ${{ github.ref_name }} prometheus_exporter-${VERSION}.zip --clobber

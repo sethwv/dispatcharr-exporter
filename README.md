@@ -51,23 +51,37 @@ This plugin collects and exposes the following metrics from your Dispatcharr ins
 
 This plugin uses **gevent**, which is already installed as part of Dispatcharr's core dependencies.
 
+### Download Latest Release
+
+Download the latest version from the [GitHub Releases page](https://github.com/sethwv/dispatcharr-exporter/releases/latest).
+
+Look for the asset named `prometheus_exporter-vX.X.X.zip` (e.g., `prometheus_exporter-v1.0.23.zip`) and download it.
+
 ### Method 1: Web UI Import (Recommended)
 
-1. Package the plugin:
-   ```bash
-   ./package.sh
-   ```
-   This creates `prometheus_exporter.zip`
+1. Download `prometheus_exporter-vX.X.X.zip` from the [latest release](https://github.com/sethwv/dispatcharr-exporter/releases/latest)
 
 2. In the Dispatcharr web UI, navigate to the Plugins page
 
-3. Click the "Import" button and upload `prometheus_exporter.zip`
+3. Click the "Import" button and upload the downloaded zip file
 
 4. Enable the plugin (you'll see a trust warning on first enable)
 
 5. Configure the plugin settings (see Configuration section below)
 
-### Method 2: Manual Installation
+### Method 2: Build from Source
+
+1. Clone the repository and package the plugin:
+   ```bash
+   git clone https://github.com/sethwv/dispatcharr-exporter.git
+   cd dispatcharr-exporter
+   ./package.sh
+   ```
+   This creates `prometheus_exporter.zip`
+
+2. Follow steps 2-5 from Method 1 above
+
+### Method 3: Manual Installation
 
 1. Copy the plugin directory to your Dispatcharr plugins folder:
    ```bash
