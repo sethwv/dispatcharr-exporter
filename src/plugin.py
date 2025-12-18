@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 # Plugin configuration - update all settings here
 PLUGIN_CONFIG = {
-    "version": "-dev-54085436-20251218125043",
+    "version": "-dev-844f5dba-20251218144117",
     "name": "Dispatcharr Exporter",
     "author": "SethWV",
     "description": "Expose Dispatcharr metrics in Prometheus exporter-compatible format for monitoring. Configuration changes require a restart of the metrics server. https://github.com/sethwv/dispatcharr-exporter/releases/",
@@ -310,11 +310,17 @@ class PrometheusMetricsCollector:
                                     channel_name = channel.name.replace('"', '\\"').replace('\\', '\\\\')
                                     channel_number = getattr(channel, 'channel_number', 'N/A')
                                     
-                                    # Get logo URL
+                                    # Get logo URL as relative path from Dispatcharr cache
                                     logo_url = ""
                                     if hasattr(channel, 'logo') and channel.logo:
                                         try:
-                                            logo_url = channel.logo.url if hasattr(channel.logo, 'url') else str(channel.logo)
+                                            # Get the full URL and extract just the API path
+                                            full_url = channel.logo.url if hasattr(channel.logo, 'url') else str(channel.logo)
+                                            # Extract path starting from /api/
+                                            if '/api/' in full_url:
+                                                logo_url = full_url[full_url.index('/api/'):]
+                                            else:
+                                                logo_url = full_url
                                         except Exception:
                                             logo_url = ""
                                     logo_url = logo_url.replace('"', '\\"').replace('\\', '\\\\')
