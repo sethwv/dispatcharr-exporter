@@ -974,7 +974,7 @@ class Plugin:
     def __init__(self):
         self.collector = PrometheusMetricsCollector()
         
-        # Check for updates in background
+        # Check for updates in background (with rate limiting via Redis TTL)
         def check_for_updates():
             try:
                 import time
@@ -1018,6 +1018,12 @@ class Plugin:
                                 60 * 60 * 24,  # 24 hour TTL
                                 latest_version
                             )
+                            
+                            # Check if we've sent a notification recently (rate limiting)
+                            last_notification = redis_client.get("prometheus_exporter:last_update_notification")
+                            if last_notification:
+                                logger.debug("Dispatcharr Exporter: Update notification already sent recently (rate limited)")
+                                return
                     except Exception:
                         pass
                     
@@ -1028,11 +1034,24 @@ class Plugin:
                             'type': 'logo_processing_summary',
                             'message': f'Dispatcharr Exporter v{latest_version} is available (currently running v{current_version}). Download: {repo_url}/releases/latest'
                         })
+                        
+                        # Set rate limit flag after successful notification (5 minute TTL)
+                        try:
+                            from core.utils import RedisClient
+                            redis_client = RedisClient.get_client()
+                            if redis_client:
+                                redis_client.setex(
+                                    "prometheus_exporter:last_update_notification",
+                                    60 * 5,  # 5 minute TTL
+                                    latest_version
+                                )
+                        except Exception:
+                            pass
+                        
+                        logger.info(f"Dispatcharr Exporter: Update available! Current: {current_version}, Latest: {latest_version}")
+                        logger.info(f"Download: {repo_url}/releases/latest")
                     except Exception as e:
                         logger.debug(f"Could not send websocket notification: {e}")
-                    
-                    logger.info(f"Dispatcharr Exporter: Update available! Current: {current_version}, Latest: {latest_version}")
-                    logger.info(f"Download: {repo_url}/releases/latest")
                 else:
                     logger.debug(f"Dispatcharr Exporter: Running latest version ({current_version})")
                     
