@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 # Plugin configuration - update all settings here
 PLUGIN_CONFIG = {
-    "version": "-dev-844f5dba-20251218144117",
+    "version": "-dev-ffc9e2d9-20251222114508",
     "name": "Dispatcharr Exporter",
     "author": "SethWV",
     "description": "Expose Dispatcharr metrics in Prometheus exporter-compatible format for monitoring. Configuration changes require a restart of the metrics server. https://github.com/sethwv/dispatcharr-exporter/releases/",
@@ -310,19 +310,22 @@ class PrometheusMetricsCollector:
                                     channel_name = channel.name.replace('"', '\\"').replace('\\', '\\\\')
                                     channel_number = getattr(channel, 'channel_number', 'N/A')
                                     
-                                    # Get logo URL as relative path from Dispatcharr cache
+                                    # Get logo URL as API cache endpoint
                                     logo_url = ""
                                     if hasattr(channel, 'logo') and channel.logo:
-                                        try:
-                                            # Get the full URL and extract just the API path
-                                            full_url = channel.logo.url if hasattr(channel.logo, 'url') else str(channel.logo)
-                                            # Extract path starting from /api/
-                                            if '/api/' in full_url:
-                                                logo_url = full_url[full_url.index('/api/'):]
-                                            else:
-                                                logo_url = full_url
-                                        except Exception:
-                                            logo_url = ""
+                                        # Construct the API cache endpoint path (always starts with /)
+                                        logo_path = f"/api/channels/logos/{channel.logo.id}/cache/"
+                                        
+                                        # Get base URL from settings if provided
+                                        base_url = settings.get('base_url', '').strip()
+                                        if base_url:
+                                            # Ensure base_url doesn't end with / to avoid double slashes
+                                            base_url = base_url.rstrip('/')
+                                            # Combine base_url with logo_path (which starts with /)
+                                            logo_url = f"{base_url}{logo_path}"
+                                        else:
+                                            # No base URL - use relative path with leading /
+                                            logo_url = logo_path
                                     logo_url = logo_url.replace('"', '\\"').replace('\\', '\\\\')
                                     
                                     # Get viewer count
@@ -654,8 +657,19 @@ class MetricsServer:
             
             def run_server():
                 try:
-                    logger.info(f"Starting gevent WSGI server on {self.host}:{self.port}")
-                    self.server = pywsgi.WSGIServer((self.host, self.port), self.wsgi_app)
+                    logger.debug(f"Starting gevent WSGI server on {self.host}:{self.port}")
+                    
+                    # Check if access logs should be suppressed
+                    suppress_logs = self.settings.get('suppress_access_logs', True)
+                    server_kwargs = {
+                        'listener': (self.host, self.port),
+                        'application': self.wsgi_app
+                    }
+                    if suppress_logs:
+                        # Suppress access logs by passing log=None
+                        server_kwargs['log'] = None
+                    
+                    self.server = pywsgi.WSGIServer(**server_kwargs)
                     # Mark as running only after successful bind
                     self.running = True
                     
@@ -685,7 +699,7 @@ class MetricsServer:
                                 stop_flag = redis_client.get("prometheus_exporter:stop_requested")
                                 # If stop requested, shut down
                                 if stop_flag == "1" or stop_flag == b"1":
-                                    logger.info("Stop signal detected via Redis, shutting down metrics server")
+                                    logger.debug("Stop signal detected via Redis, shutting down metrics server")
                                     self.running = False
                                     self.server.stop()
                                     break
@@ -712,11 +726,11 @@ class MetricsServer:
                         lock_file = "/tmp/prometheus_exporter_autostart.lock"
                         if os.path.exists(lock_file):
                             os.remove(lock_file)
-                            logger.info("Removed auto-start lock file")
+                            logger.debug("Removed auto-start lock file")
                     except Exception as e:
                         logger.debug(f"Could not remove lock file on shutdown: {e}")
                     
-                    logger.info("Metrics server stopped and cleaned up")
+                    logger.debug("Metrics server stopped and cleaned up")
                     
                 except Exception as e:
                     logger.error(f"Error running metrics server: {e}", exc_info=True)
@@ -841,6 +855,20 @@ class Plugin:
             "type": "boolean",
             "default": False,
             "help_text": "Include server URLs & XC usernames in M3U account and EPG source metrics. Ensure this is DISABLED if sharing output in Discord for troubleshooting."
+        },
+        {
+            "id": "suppress_access_logs",
+            "label": "Suppress Access Logs",
+            "type": "boolean",
+            "default": True,
+            "help_text": "Suppress HTTP access logs for /metrics requests"
+        },
+        {
+            "id": "base_url",
+            "label": "Dispatcharr Base URL (Optional)",
+            "type": "string",
+            "default": "",
+            "help_text": "URL for Dispatcharr API (e.g., http://localhost:5656 or https://dispatcharr.example.com). If set, logo URLs will be absolute instead of relative paths. Leave empty to use relative paths."
         }
     ]
 
@@ -878,13 +906,13 @@ class Plugin:
         global _metrics_server, _auto_start_attempted
         
         if _auto_start_attempted:
-            logger.info("Prometheus exporter: Auto-start already attempted in this process, skipping")
+            logger.debug("Prometheus exporter: Auto-start already attempted in this process, skipping")
             return
         
         # Mark as attempted immediately to prevent re-entry during plugin re-discovery
         _auto_start_attempted = True
         
-        logger.info("Prometheus exporter: Initializing plugin and starting auto-start thread")
+        logger.debug("Prometheus exporter: Initializing plugin and starting auto-start thread")
         
         def delayed_auto_start():
             import time
@@ -897,7 +925,7 @@ class Plugin:
             max_retries = 5
             retry_delay = 2
             
-            logger.info("Prometheus exporter: Auto-start thread started, attempting to acquire lock")
+            logger.debug("Prometheus exporter: Auto-start thread started, attempting to acquire lock")
             
             # Try to acquire lock - only ONE worker across all processes should succeed
             try:
@@ -910,7 +938,7 @@ class Plugin:
                     pass
                 fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
                 
-                logger.info("Prometheus exporter: Lock acquired, checking config for auto-start")
+                logger.debug("Prometheus exporter: Lock acquired, checking config for auto-start")
                 
                 # We got the lock - we're the chosen worker for auto-start
                 try:
@@ -935,13 +963,13 @@ class Plugin:
                     config = PluginConfig.objects.filter(key='dispatcharr_exporter').first()
                     settings_dict = config.settings if config and config.settings else {}
                     initial_auto_start_enabled = config and config.enabled and settings_dict.get('auto_start', PLUGIN_CONFIG["auto_start_default"])
-                    logger.info(f"Prometheus exporter: Initial auto-start setting captured: config_exists={config is not None}, enabled={config.enabled if config else 'N/A'}, auto_start={initial_auto_start_enabled}")
+                    logger.debug(f"Prometheus exporter: Initial auto-start setting captured: config_exists={config is not None}, enabled={config.enabled if config else 'N/A'}, auto_start={initial_auto_start_enabled}")
                 except Exception as e:
                     logger.warning(f"Could not read initial auto-start setting: {e}")
                 
                 # If auto-start was not enabled initially, exit now
                 if not initial_auto_start_enabled:
-                    logger.info("Prometheus exporter: Auto-start disabled at startup, will not auto-start")
+                    logger.debug("Prometheus exporter: Auto-start disabled at startup, will not auto-start")
                     fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
                     lock_fd.close()
                     return
@@ -963,7 +991,7 @@ class Plugin:
                             port = int(settings_dict.get('port', PLUGIN_CONFIG["default_port"]))
                             host = settings_dict.get('host', PLUGIN_CONFIG["default_host"])
                             
-                            logger.info(f"Auto-start is enabled, attempting to start on {host}:{port}")
+                            logger.debug(f"Auto-start is enabled, attempting to start on {host}:{port}")
                             
                             # Check if port is available before trying to start
                             import socket
@@ -974,7 +1002,7 @@ class Plugin:
                                 sock.close()
                             except OSError:
                                 # Port already in use - stop retrying
-                                logger.info(f"Port {port} already in use, cannot auto-start metrics server")
+                                logger.debug(f"Port {port} already in use, cannot auto-start metrics server")
                                 fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
                                 lock_fd.close()
                                 return
