@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 # Plugin configuration - update all settings here
 PLUGIN_CONFIG = {
-    "version": "-dev-ffc9e2d9-20251222114508",
+    "version": "-dev-9ff89b28-20251222120313",
     "name": "Dispatcharr Exporter",
     "author": "SethWV",
     "description": "Expose Dispatcharr metrics in Prometheus exporter-compatible format for monitoring. Configuration changes require a restart of the metrics server. https://github.com/sethwv/dispatcharr-exporter/releases/",
@@ -108,7 +108,7 @@ class PrometheusMetricsCollector:
             metrics.extend(self._collect_profile_metrics())
         
         # Stream metrics with detailed info
-        metrics.extend(self._collect_stream_metrics())
+        metrics.extend(self._collect_stream_metrics(settings))
         
         # VOD metrics (optional, disabled by default)
         if settings and settings.get('include_vod_stats', False):
@@ -271,10 +271,12 @@ class PrometheusMetricsCollector:
         metrics.append("")
         return metrics
 
-    def _collect_stream_metrics(self) -> list:
+    def _collect_stream_metrics(self, settings: dict = None) -> list:
         """Collect active stream statistics from Redis"""
         from apps.channels.models import Channel, Stream
         from apps.m3u.models import M3UAccount, M3UAccountProfile
+        
+        settings = settings or {}
         
         metrics = []
         metrics.append("# HELP dispatcharr_active_streams Total number of active streams")
@@ -829,6 +831,13 @@ class Plugin:
             "help_text": "Host address to bind to (0.0.0.0 for all interfaces, 127.0.0.1 for localhost only)"
         },
         {
+            "id": "base_url",
+            "label": "Dispatcharr Base URL (Optional)",
+            "type": "string",
+            "default": "",
+            "help_text": "URL for Dispatcharr API (e.g., http://localhost:5656 or https://dispatcharr.example.com). If set, logo URLs will be absolute instead of relative paths. Leave empty to use relative paths."
+        },
+        {
             "id": "include_m3u_stats",
             "label": "Include M3U Account Statistics",
             "type": "boolean",
@@ -862,13 +871,6 @@ class Plugin:
             "type": "boolean",
             "default": True,
             "help_text": "Suppress HTTP access logs for /metrics requests"
-        },
-        {
-            "id": "base_url",
-            "label": "Dispatcharr Base URL (Optional)",
-            "type": "string",
-            "default": "",
-            "help_text": "URL for Dispatcharr API (e.g., http://localhost:5656 or https://dispatcharr.example.com). If set, logo URLs will be absolute instead of relative paths. Leave empty to use relative paths."
         }
     ]
 
