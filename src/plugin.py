@@ -23,10 +23,11 @@ logger = logging.getLogger(__name__)
 
 # Plugin configuration - update all settings here
 PLUGIN_CONFIG = {
-    "version": "-dev-9ff89b28-20251222120313",
+    "version": "-dev-d7484474-20251222123417",
     "name": "Dispatcharr Exporter",
     "author": "SethWV",
     "description": "Expose Dispatcharr metrics in Prometheus exporter-compatible format for monitoring. Configuration changes require a restart of the metrics server. https://github.com/sethwv/dispatcharr-exporter/releases/",
+    "repo_url": "https://github.com/sethwv/dispatcharr-exporter",
     "default_port": 9192,
     "default_host": "0.0.0.0",
     "auto_start_default": False,
@@ -90,6 +91,35 @@ class PrometheusMetricsCollector:
         metrics.append("# HELP dispatcharr_info Dispatcharr version and instance information")
         metrics.append("# TYPE dispatcharr_info gauge")
         metrics.append(f'dispatcharr_info{{version="{full_version}"}} 1')
+        metrics.append("")
+        
+        # Add exporter version info
+        # Add exporter settings info (programmatically from Plugin.fields)
+        exporter_version = PLUGIN_CONFIG["version"].lstrip('-')
+        metrics.append("# HELP dispatcharr_exporter_info Dispatcharr Exporter plugin version information")
+        metrics.append("# TYPE dispatcharr_exporter_info gauge")
+        metrics.append("# HELP dispatcharr_exporter_settings Dispatcharr Exporter plugin settings")
+        metrics.append("# TYPE dispatcharr_exporter_settings gauge")
+        metrics.append(f'dispatcharr_exporter_info{{version="{exporter_version}"}} 1')
+        
+        # Build labels programmatically from Plugin fields
+        settings_labels = []
+        for field in Plugin.fields:
+            field_id = field['id']
+            field_value = settings.get(field_id, field['default']) if settings else field['default']
+            
+            # Convert value to string and escape quotes/backslashes
+            if isinstance(field_value, bool):
+                value_str = str(field_value).lower()
+            elif isinstance(field_value, (int, float)):
+                value_str = str(field_value)
+            else:
+                # String values - escape quotes and backslashes
+                value_str = str(field_value).replace('\\', '\\\\').replace('"', '\\"')
+            
+            settings_labels.append(f'{field_id}="{value_str}"')
+        
+        metrics.append(f'dispatcharr_exporter_settings{{{",".join(settings_labels)}}} 1')
         metrics.append("")
 
         # M3U Account metrics (optional, enabled by default)
@@ -817,6 +847,20 @@ class Plugin:
             "help_text": "Automatically start the metrics server when plugin loads (recommended)"
         },
         {
+            "id": "suppress_access_logs",
+            "label": "Suppress Access Logs",
+            "type": "boolean",
+            "default": True,
+            "help_text": "Suppress HTTP access logs for /metrics requests"
+        },
+        {
+            "id": "disable_update_notifications",
+            "label": "Disable Update Notifications",
+            "type": "boolean",
+            "default": False,
+            "help_text": "Disable automatic update notifications (updates can still be checked manually via the 'Check for Updates' action)"
+        },
+        {
             "id": "port",
             "label": "Metrics Server Port",
             "type": "number",
@@ -864,13 +908,6 @@ class Plugin:
             "type": "boolean",
             "default": False,
             "help_text": "Include server URLs & XC usernames in M3U account and EPG source metrics. Ensure this is DISABLED if sharing output in Discord for troubleshooting."
-        },
-        {
-            "id": "suppress_access_logs",
-            "label": "Suppress Access Logs",
-            "type": "boolean",
-            "default": True,
-            "help_text": "Suppress HTTP access logs for /metrics requests"
         }
     ]
 
@@ -894,11 +931,117 @@ class Plugin:
             "id": "server_status",
             "label": "Server Status",
             "description": "Check if the metrics server is running and get endpoint URL"
+        },
+        {
+            "id": "check_for_updates",
+            "label": "Check for Updates",
+            "description": "Check if a new version is available"
         }
     ]
 
+    def _check_github_for_updates(self):
+        """Helper method to check GitHub for latest release version"""
+        import requests
+        
+        current_version = PLUGIN_CONFIG["version"].lstrip('-').lstrip('v')
+        
+        # Skip version check for dev builds
+        if 'dev' in current_version:
+            return {'is_dev': True, 'current': current_version}
+        
+        repo_url = PLUGIN_CONFIG.get("repo_url", "https://github.com/sethwv/dispatcharr-exporter")
+        api_url = f"{repo_url.replace('github.com', 'api.github.com/repos')}/releases/latest"
+        
+        response = requests.get(
+            api_url,
+            timeout=5,
+            headers={'Accept': 'application/vnd.github.v3+json'}
+        )
+        
+        if not response.ok:
+            return {'error': f'HTTP {response.status_code}'}
+        
+        data = response.json()
+        latest_version = data.get('tag_name', '').lstrip('v')
+        
+        return {
+            'current': current_version,
+            'latest': latest_version,
+            'update_available': latest_version != current_version,
+            'repo_url': repo_url
+        }
+    
     def __init__(self):
         self.collector = PrometheusMetricsCollector()
+        
+        # Check for updates in background
+        def check_for_updates():
+            try:
+                import time
+                time.sleep(2)  # Brief delay to not slow down plugin load
+                
+                # Check if update notifications are disabled
+                try:
+                    from apps.plugins.models import PluginConfig
+                    config = PluginConfig.objects.filter(key='dispatcharr_exporter').first()
+                    if config and config.settings and config.settings.get('disable_update_notifications', False):
+                        logger.debug("Dispatcharr Exporter: Update notifications are disabled")
+                        return
+                except Exception as e:
+                    logger.debug(f"Could not check update notification setting: {e}")
+                
+                # Use helper method to check for updates
+                result = self._check_github_for_updates()
+                
+                # Handle dev build
+                if result.get('is_dev'):
+                    logger.debug(f"Dispatcharr Exporter: Running dev version ({result['current']})")
+                    return
+                
+                # Handle errors
+                if 'error' in result:
+                    logger.debug(f"Could not check for updates: {result['error']}")
+                    return
+                
+                current_version = result['current']
+                latest_version = result['latest']
+                repo_url = result['repo_url']
+                
+                if result['update_available']:
+                    # Store update info in Redis
+                    try:
+                        from core.utils import RedisClient
+                        redis_client = RedisClient.get_client()
+                        if redis_client:
+                            redis_client.setex(
+                                "prometheus_exporter:update_available",
+                                60 * 60 * 24,  # 24 hour TTL
+                                latest_version
+                            )
+                    except Exception:
+                        pass
+                    
+                    # Send notification using existing logo_processing_summary type
+                    try:
+                        from core.utils import send_websocket_update
+                        send_websocket_update('updates', 'update', {
+                            'type': 'logo_processing_summary',
+                            'message': f'Dispatcharr Exporter v{latest_version} is available (currently running v{current_version}). Download: {repo_url}/releases/latest'
+                        })
+                    except Exception as e:
+                        logger.debug(f"Could not send websocket notification: {e}")
+                    
+                    logger.info(f"Dispatcharr Exporter: Update available! Current: {current_version}, Latest: {latest_version}")
+                    logger.info(f"Download: {repo_url}/releases/latest")
+                else:
+                    logger.debug(f"Dispatcharr Exporter: Running latest version ({current_version})")
+                    
+            except Exception as e:
+                logger.debug(f"Could not check for updates: {e}")
+        
+        # Start version check in background thread
+        import threading
+        threading.Thread(target=check_for_updates, daemon=True, name="version-check").start()
         
         # Don't check Redis here - it may not be ready during startup
         # File-based locking will prevent duplicate auto-start attempts
@@ -1287,6 +1430,62 @@ class Plugin:
                 return {
                     "status": "error",
                     "message": f"Failed to check status: {str(e)}"
+                }
+
+        elif action == "check_for_updates":
+            try:
+                # Use helper method to check for updates
+                result = self._check_github_for_updates()
+                
+                # Handle dev build
+                if result.get('is_dev'):
+                    return {
+                        "status": "success",
+                        "message": f"Running development version ({result['current']}). Update checks are disabled for dev builds."
+                    }
+                
+                # Handle errors
+                if 'error' in result:
+                    return {
+                        "status": "error",
+                        "message": f"Failed to check for updates ({result['error']})"
+                    }
+                
+                current_version = result['current']
+                latest_version = result['latest']
+                repo_url = result['repo_url']
+                
+                if result['update_available']:
+                    # Store in Redis for future reference
+                    try:
+                        from core.utils import RedisClient
+                        redis_client = RedisClient.get_client()
+                        if redis_client:
+                            redis_client.setex(
+                                "prometheus_exporter:update_available",
+                                60 * 60 * 24,  # 24 hour TTL
+                                latest_version
+                            )
+                    except Exception:
+                        pass
+                    
+                    return {
+                        "status": "warning",
+                        "message": f"Update available! Current: {current_version}, Latest: {latest_version}",
+                        "download_url": f"{repo_url}/releases/latest",
+                        "note": f"Download from: {repo_url}/releases/latest"
+                    }
+                else:
+                    return {
+                        "status": "success",
+                        "message": f"You are running the latest version ({current_version})"
+                    }
+                    
+            except Exception as e:
+                logger_ctx.error(f"Error checking for updates: {e}", exc_info=True)
+                return {
+                    "status": "error",
+                    "message": f"Failed to check for updates: {str(e)}"
                 }
 
         return {"status": "error", "message": f"Unknown action: {action}"}
