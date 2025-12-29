@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 # Plugin configuration - update all settings here
 PLUGIN_CONFIG = {
-    "version": "-dev-94aa98c1-20251229125321",
+    "version": "-dev-ec87ee41-20251229184147",
     "name": "Dispatcharr Exporter",
     "author": "SethWV",
     "description": "Expose Dispatcharr metrics in Prometheus exporter-compatible format for monitoring. Configuration changes require a restart of the metrics server. https://github.com/sethwv/dispatcharr-exporter/releases/",
@@ -567,8 +567,7 @@ class PrometheusMetricsCollector:
                                             f'avg_bitrate_kbps="{avg_bitrate_kbps}"',
                                             f'total_transfer_mb="{total_mb}"',
                                             f'uptime_seconds="{uptime_seconds}"',
-                                            f'active_clients="{active_clients}"',
-                                            f'state="{state}"'
+                                            f'active_clients="{active_clients}"'
                                         ]
                                         
                                         # Legacy format (only if enabled)
