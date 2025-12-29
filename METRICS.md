@@ -239,21 +239,7 @@ All value metrics use only `channel_uuid` and `channel_number` as labels for eff
 dispatcharr_active_streams 12
 ```
 
-#### `dispatcharr_stream_viewers`
-**Type:** gauge  
-**Value:** Number of viewers  
-**Labels:**
-- `channel_uuid` - Channel UUID
-- `channel_number` - Channel number
-
-**Description:** Current number of viewers for this stream (only present if > 0).
-
-**Example:**
-```
-dispatcharr_stream_viewers{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 3
-```
-
-#### `dispatcharr_stream_uptime_seconds`
+#### `dispatcharr_stream_uptime_seconds_total`
 **Type:** counter  
 **Value:** Seconds since stream started  
 **Labels:**
@@ -264,7 +250,7 @@ dispatcharr_stream_viewers{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",c
 
 **Example:**
 ```
-dispatcharr_stream_uptime_seconds{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 3847
+dispatcharr_stream_uptime_seconds_total{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 3847
 ```
 
 #### `dispatcharr_stream_active_clients`
@@ -337,18 +323,18 @@ dispatcharr_stream_transcode_bitrate_kbps{channel_uuid="12572661-bc4b-4937-8501-
 dispatcharr_stream_avg_bitrate_kbps{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 5200.5
 ```
 
-#### `dispatcharr_stream_total_transfer_mb`
+#### `dispatcharr_stream_transfer_bytes_total`
 **Type:** counter  
-**Value:** Megabytes transferred  
+**Value:** Total bytes transferred  
 **Labels:**
 - `channel_uuid` - Channel UUID
 - `channel_number` - Channel number
 
-**Description:** Total data transferred by this stream in megabytes. Cumulative counter.
+**Description:** Total data transferred by this stream in bytes.
 
 **Example:**
 ```
-dispatcharr_stream_total_transfer_mb{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 1024.5
+dispatcharr_stream_transfer_bytes_total{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 4294967296
 ```
 
 ### Context Metrics (For Enrichment)
@@ -397,6 +383,29 @@ dispatcharr_stream_id{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channe
 dispatcharr_stream_index{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 0
 ```
 
+#### `dispatcharr_stream_available_streams`
+**Type:** gauge  
+**Value:** Total number of streams configured  
+**Labels:**
+- `channel_uuid` - Channel UUID
+- `channel_number` - Channel number
+
+**Description:** Total number of streams configured for this channel. Useful with `dispatcharr_stream_index` to detect when channel is on its last available stream.
+
+**Example:**
+```
+dispatcharr_stream_available_streams{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 3
+```
+
+**Useful queries:**
+```promql
+# Remaining backup streams available
+dispatcharr_stream_available_streams - dispatcharr_stream_index - 1
+
+# Alert when on last stream
+dispatcharr_stream_index >= dispatcharr_stream_available_streams - 1
+```
+
 #### `dispatcharr_stream_metadata`
 **Type:** gauge  
 **Value:** Always 1  
@@ -404,6 +413,7 @@ dispatcharr_stream_index{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",cha
 - `channel_uuid` - Channel UUID
 - `channel_number` - Channel number
 - `channel_name` - Channel name
+- `channel_group` - Channel group name (or "none" if not assigned)
 - `stream_id` - Stream database ID
 - `stream_name` - Stream name
 - `provider` - M3U account/provider name
@@ -474,7 +484,7 @@ dispatcharr_client_info{client_id="client_1735492847123_4567",channel_uuid="1257
 dispatcharr_client_connection_duration_seconds{client_id="client_1735492847123_4567",channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 3847
 ```
 
-### `dispatcharr_client_bytes_sent`
+### `dispatcharr_client_bytes_sent_total`
 **Type:** counter  
 **Value:** Total bytes sent to client  
 **Labels:**
@@ -486,7 +496,7 @@ dispatcharr_client_connection_duration_seconds{client_id="client_1735492847123_4
 
 **Example:**
 ```
-dispatcharr_client_bytes_sent{client_id="client_1735492847123_4567",channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 524288000
+dispatcharr_client_bytes_sent_total{client_id="client_1735492847123_4567",channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 524288000
 ```
 
 ### `dispatcharr_client_avg_transfer_rate_kbps`
@@ -685,7 +695,7 @@ dispatcharr_stream_fps{channel_uuid="..."}
 dispatcharr_stream_index > 0
 
 # Sort channels by number
-sort(dispatcharr_channel_number)
+sort(dispatcharr_stream_channel_number)
 
 # Client connection durations
 dispatcharr_client_connection_duration_seconds
@@ -697,10 +707,10 @@ dispatcharr_client_connection_duration_seconds > 3600
 ### Client Queries
 ```promql
 # Total bytes sent to all clients
-sum(dispatcharr_client_bytes_sent)
+sum(dispatcharr_client_bytes_sent_total)
 
 # Total bytes sent per channel
-sum by (channel_uuid, channel_number) (dispatcharr_client_bytes_sent)
+sum by (channel_uuid, channel_number) (dispatcharr_client_bytes_sent_total)
 
 # Average transfer rate across all clients
 avg(dispatcharr_client_avg_transfer_rate_kbps)
@@ -724,12 +734,12 @@ dispatcharr_stream_fps
   dispatcharr_stream_metadata
 
 # Total transfer with full metadata
-dispatcharr_stream_total_transfer_mb
+dispatcharr_stream_transfer_bytes_total
   * on(channel_uuid, channel_number) group_left(logo_url, resolution, video_codec)
   dispatcharr_stream_metadata
 
 # Stream uptime with index
-dispatcharr_stream_uptime_seconds
+dispatcharr_stream_uptime_seconds_total
   + on(channel_uuid, channel_number)
   dispatcharr_stream_index
 ```

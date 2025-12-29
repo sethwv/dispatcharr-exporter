@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 # Plugin configuration - update all settings here
 PLUGIN_CONFIG = {
-    "version": "-dev-13450b0d-20251229112207",
+    "version": "-dev-94aa98c1-20251229125321",
     "name": "Dispatcharr Exporter",
     "author": "SethWV",
     "description": "Expose Dispatcharr metrics in Prometheus exporter-compatible format for monitoring. Configuration changes require a restart of the metrics server. https://github.com/sethwv/dispatcharr-exporter/releases/",
@@ -231,7 +231,8 @@ class PrometheusMetricsCollector:
                     legacy_labels.append(f'server_url="{server_url}"')
                     base_labels.append(f'server_url="{server_url}"')
                 
-                metrics.append(f'dispatcharr_m3u_account_info{{{",".join(legacy_labels)}}} 1')
+                # Info metric uses base_labels (no stream_count)
+                metrics.append(f'dispatcharr_m3u_account_info{{{",".join(base_labels)}}} 1')
                 
                 # Add separate gauge for stream count (proper time series)
                 metrics.append(f'dispatcharr_m3u_account_stream_count{{{",".join(base_labels)}}} {stream_count}')
@@ -260,20 +261,6 @@ class PrometheusMetricsCollector:
             metrics.append("# TYPE dispatcharr_channel_groups gauge")
             channel_groups = ChannelGroup.objects.count()
             metrics.append(f"dispatcharr_channel_groups {channel_groups}")
-            
-            # Active viewers per channel (from Redis)
-            # metrics.append("# HELP dispatcharr_channel_viewers Current viewers per channel")
-            # metrics.append("# TYPE dispatcharr_channel_viewers gauge")
-            
-            if self.redis_client:
-                for channel in Channel.objects.all():
-                    try:
-                        viewers = int(self.redis_client.get(f"channel:{channel.uuid}:viewers") or 0)
-                        if viewers > 0:
-                            channel_name = channel.name.replace('"', '\\"')
-                            metrics.append(f'dispatcharr_channel_viewers{{channel_id="{channel.uuid}",channel_name="{channel_name}"}} {viewers}')
-                    except Exception as e:
-                        logger.debug(f"Error getting viewers for channel {channel.uuid}: {e}")
             
         except Exception as e:
             logger.error(f"Error collecting channel metrics: {e}")
@@ -356,13 +343,15 @@ class PrometheusMetricsCollector:
         metrics.append("# HELP dispatcharr_stream_index Active stream index for channel (0=primary, >0=fallback)")
         metrics.append("# TYPE dispatcharr_stream_index gauge")
         
+        # Available streams count
+        metrics.append("# HELP dispatcharr_stream_available_streams Total number of streams configured for channel")
+        metrics.append("# TYPE dispatcharr_stream_available_streams gauge")
+        
         # Metadata/info metric with enrichment labels
-        metrics.append("# HELP dispatcharr_stream_metadata Stream metadata and enrichment information")
+        metrics.append("# HELP dispatcharr_stream_metadata Stream metadata and enrichment information (state values: active, waiting_for_clients, buffering, stopping, error, unknown)")
         metrics.append("# TYPE dispatcharr_stream_metadata gauge")
         
         # Separate gauge metrics for values that change (recommended for proper time series)
-        metrics.append("# HELP dispatcharr_stream_viewers Current number of viewers per stream")
-        metrics.append("# TYPE dispatcharr_stream_viewers gauge")
         metrics.append("# HELP dispatcharr_stream_uptime_seconds Stream uptime in seconds since stream started")
         metrics.append("# TYPE dispatcharr_stream_uptime_seconds counter")
         metrics.append("# HELP dispatcharr_stream_active_clients Number of active clients connected to stream")
@@ -406,10 +395,11 @@ class PrometheusMetricsCollector:
                                 
                                 # Get channel details
                                 try:
-                                    channel = Channel.objects.select_related('logo').get(id=int(channel_id))
+                                    channel = Channel.objects.select_related('logo', 'channel_group').get(id=int(channel_id))
                                     channel_uuid = str(channel.uuid)
                                     channel_name = channel.name.replace('"', '\\"').replace('\\', '\\\\')
                                     channel_number = getattr(channel, 'channel_number', 'N/A')
+                                    channel_group = channel.channel_group.name.replace('"', '\\"').replace('\\', '\\\\') if channel.channel_group else "none"
                                     
                                     # Get logo URL as API cache endpoint
                                     logo_url = ""
@@ -429,10 +419,7 @@ class PrometheusMetricsCollector:
                                             logo_url = logo_path
                                     logo_url = logo_url.replace('"', '\\"').replace('\\', '\\\\')
                                     
-                                    # Get viewer count
-                                    viewers = int(self.redis_client.get(f"channel:{channel_uuid}:viewers") or 0)
-                                    
-                                    # Get detailed stream stats from Redis metadata (uses UUID, not ID!)
+                                    # Get stream stats from Redis metadata (uses UUID)
                                     metadata_key = f"ts_proxy:channel:{channel_uuid}:metadata"
                                     metadata = self.redis_client.hgetall(metadata_key) or {}
                                     
@@ -535,6 +522,7 @@ class PrometheusMetricsCollector:
                                         # Build metadata labels (all identifying/enrichment information)
                                         metadata_labels = base_labels + [
                                             f'channel_name="{channel_name}"',
+                                            f'channel_group="{channel_group}"',
                                             f'stream_id="{stream_id}"',
                                             f'stream_name="{stream_name}"',
                                             f'provider="{provider}"',
@@ -551,6 +539,12 @@ class PrometheusMetricsCollector:
                                         # Add stream index metric (minimal labels, value = index)
                                         stream_value_metrics.append(
                                             f'dispatcharr_stream_index{{{base_labels_str}}} {stream_index}'
+                                        )
+                                        
+                                        # Add available streams count (total configured streams for this channel)
+                                        available_streams = channel.streams.count()
+                                        stream_value_metrics.append(
+                                            f'dispatcharr_stream_available_streams{{{base_labels_str}}} {available_streams}'
                                         )
                                         
                                         # Add channel number metric (minimal labels, value = channel_number)
@@ -577,10 +571,6 @@ class PrometheusMetricsCollector:
                                             f'state="{state}"'
                                         ]
                                         
-                                        # Add viewers to legacy labels if > 0
-                                        if viewers > 0:
-                                            legacy_labels.append(f'viewers="{viewers}"')
-                                        
                                         # Legacy format (only if enabled)
                                         if include_legacy:
                                             stream_info_metrics.append(
@@ -588,11 +578,6 @@ class PrometheusMetricsCollector:
                                             )
                                         
                                         # Create separate gauge metrics for dynamic values
-                                        if viewers > 0:
-                                            stream_value_metrics.append(
-                                                f'dispatcharr_stream_viewers{{{base_labels_str}}} {viewers}'
-                                            )
-                                        
                                         stream_value_metrics.append(
                                             f'dispatcharr_stream_uptime_seconds{{{base_labels_str}}} {uptime_seconds}'
                                         )
@@ -749,7 +734,7 @@ class PrometheusMetricsCollector:
         try:
             from apps.channels.models import Channel
             
-            # Header for client metrics
+            # Client metrics headers
             metrics.append("# HELP dispatcharr_active_clients Total number of active client connections")
             metrics.append("# TYPE dispatcharr_active_clients gauge")
             metrics.append("# HELP dispatcharr_client_info Client connection metadata")
@@ -767,7 +752,7 @@ class PrometheusMetricsCollector:
             cursor = 0
             current_time = time.time()
             total_clients = 0
-            client_metrics = []  # Collect individual client metrics separately
+            client_metrics = []
             
             while True:
                 cursor, keys = self.redis_client.scan(
@@ -856,16 +841,7 @@ class PrometheusMetricsCollector:
                                 except (ValueError, TypeError):
                                     pass
                                 
-                                # Last activity time
-                                last_active_ago = 0
-                                last_active_str = get_client_field('last_active', '0')
-                                try:
-                                    last_active = float(last_active_str)
-                                    last_active_ago = int(current_time - last_active)
-                                except (ValueError, TypeError):
-                                    pass
-                                
-                                # Base labels for all client metrics (minimal for joining)
+                                # Minimal labels for joining
                                 base_labels = [
                                     f'client_id="{client_id_safe}"',
                                     f'channel_uuid="{channel_uuid}"',
@@ -903,13 +879,14 @@ class PrometheusMetricsCollector:
                 if cursor == 0:
                     break
             
-            # Output total client count first, then individual client metrics
+            # Total count, then individual metrics
             metrics.append(f"dispatcharr_active_clients {total_clients}")
             metrics.extend(client_metrics)
             
         except Exception as e:
             logger.error(f"Error collecting client metrics: {e}")
         
+        metrics.append("")
         return metrics
 
     def _collect_vod_metrics(self) -> list:
@@ -985,6 +962,95 @@ class MetricsServer:
             headers = [('Content-Type', 'text/plain')]
             start_response(status, headers)
             return [b"OK\n"]
+        
+        elif path == '/':
+            status = '200 OK'
+            headers = [('Content-Type', 'text/html; charset=utf-8')]
+            start_response(status, headers)
+            
+            # Get plugin info from config
+            plugin_name = PLUGIN_CONFIG.get('name', 'Dispatcharr Exporter')
+            plugin_version = PLUGIN_CONFIG.get('version', 'unknown version').lstrip('-')
+            plugin_description = PLUGIN_CONFIG.get('description', 'This exporter provides Prometheus metrics for Dispatcharr.')
+            repo_url = PLUGIN_CONFIG.get('repo_url', 'https://github.com/sethwv/dispatcharr-exporter')
+            releases_url = f"{repo_url}/releases"
+            
+            html = f"""<!DOCTYPE html>
+<html>
+<head>
+    <title>{plugin_name}</title>
+    <style>
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            max-width: 600px;
+            margin: 100px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }}
+        .container {{
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }}
+        h1 {{
+            margin-top: 0;
+            color: #333;
+        }}
+        .version {{
+            color: #999;
+            font-size: 14px;
+            margin-top: -10px;
+            margin-bottom: 20px;
+        }}
+        p {{
+            color: #666;
+            line-height: 1.6;
+        }}
+        a {{
+            color: #0066cc;
+            text-decoration: none;
+        }}
+        a:hover {{
+            text-decoration: underline;
+        }}
+        .links {{
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }}
+        .links a {{
+            display: inline-block;
+            margin-right: 20px;
+            font-weight: 500;
+        }}
+        .external-links {{
+            margin-top: 20px;
+            font-size: 14px;
+        }}
+        .external-links a {{
+            margin-right: 15px;
+            color: #666;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>{plugin_name}</h1>
+        <div class="version">{plugin_version}</div>
+        <p>{plugin_description.split('. ')[0]}.</p>
+        <div class="external-links">
+            <a href="{repo_url}" target="_blank">GitHub Repository</a>
+            <a href="{releases_url}" target="_blank">Releases</a>
+        </div>
+        <div class="links">
+            <a href="/metrics">View Metrics</a>
+            <a href="/health">Health Check</a>
+        </div>
+    </div>
+</body>
+</html>"""
+            return [html.encode('utf-8')]
         
         else:
             status = '404 Not Found'
