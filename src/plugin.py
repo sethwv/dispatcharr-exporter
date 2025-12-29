@@ -371,6 +371,15 @@ class PrometheusMetricsCollector:
                                         val = metadata.get(field.encode('utf-8') if isinstance(field, str) else field, b'0')
                                         return val.decode('utf-8') if isinstance(val, bytes) else default
                                     
+                                    # Get ACTUAL active stream ID from metadata (this updates during fallback)
+                                    active_stream_id_str = get_metadata(ChannelMetadataField.STREAM_ID, None)
+                                    if active_stream_id_str and active_stream_id_str != '0':
+                                        try:
+                                            # Override stream_id with the actual active stream from metadata
+                                            stream_id = int(active_stream_id_str)
+                                        except (ValueError, TypeError):
+                                            logger.debug(f"Invalid active stream ID in metadata: {active_stream_id_str}")
+                                    
                                     # Calculate uptime
                                     init_time = float(get_metadata(ChannelMetadataField.INIT_TIME, '0'))
                                     uptime_seconds = int(time.time() - init_time) if init_time > 0 else 0
