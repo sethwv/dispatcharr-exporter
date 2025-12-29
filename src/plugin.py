@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 # Plugin configuration - update all settings here
 PLUGIN_CONFIG = {
-    "version": "-dev-ec87ee41-20251229184147",
+    "version": "-dev-33b72623-20251229185428",
     "name": "Dispatcharr Exporter",
     "author": "SethWV",
     "description": "Expose Dispatcharr metrics in Prometheus exporter-compatible format for monitoring. Configuration changes require a restart of the metrics server. https://github.com/sethwv/dispatcharr-exporter/releases/",
@@ -277,7 +277,7 @@ class PrometheusMetricsCollector:
         
         try:
             if self.redis_client:
-                for profile in M3UAccountProfile.objects.filter(is_active=True):
+                for profile in M3UAccountProfile.objects.all():
                     try:
                         # Skip 'custom' account
                         if profile.m3u_account.name.lower() == 'custom':
