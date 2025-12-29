@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 # Plugin configuration - update all settings here
 PLUGIN_CONFIG = {
-    "version": "-dev-d7484474-20251222123417",
+    "version": "-dev-13450b0d-20251229112207",
     "name": "Dispatcharr Exporter",
     "author": "SethWV",
     "description": "Expose Dispatcharr metrics in Prometheus exporter-compatible format for monitoring. Configuration changes require a restart of the metrics server. https://github.com/sethwv/dispatcharr-exporter/releases/",
@@ -98,15 +98,23 @@ class PrometheusMetricsCollector:
         exporter_version = PLUGIN_CONFIG["version"].lstrip('-')
         metrics.append("# HELP dispatcharr_exporter_info Dispatcharr Exporter plugin version information")
         metrics.append("# TYPE dispatcharr_exporter_info gauge")
-        metrics.append("# HELP dispatcharr_exporter_settings Dispatcharr Exporter plugin settings")
-        metrics.append("# TYPE dispatcharr_exporter_settings gauge")
+        metrics.append("# HELP dispatcharr_exporter_settings_info Dispatcharr Exporter plugin settings (for debugging/support)")
+        metrics.append("# TYPE dispatcharr_exporter_settings_info gauge")
+        metrics.append("# HELP dispatcharr_exporter_port Configured port number for the metrics server")
+        metrics.append("# TYPE dispatcharr_exporter_port gauge")
         metrics.append(f'dispatcharr_exporter_info{{version="{exporter_version}"}} 1')
         
         # Build labels programmatically from Plugin fields
         settings_labels = []
+        port_value = PLUGIN_CONFIG["default_port"]
+        
         for field in Plugin.fields:
             field_id = field['id']
             field_value = settings.get(field_id, field['default']) if settings else field['default']
+            
+            # Capture port for separate metric
+            if field_id == 'port':
+                port_value = field_value
             
             # Convert value to string and escape quotes/backslashes
             if isinstance(field_value, bool):
@@ -119,7 +127,8 @@ class PrometheusMetricsCollector:
             
             settings_labels.append(f'{field_id}="{value_str}"')
         
-        metrics.append(f'dispatcharr_exporter_settings{{{",".join(settings_labels)}}} 1')
+        metrics.append(f'dispatcharr_exporter_settings_info{{{",".join(settings_labels)}}} 1')
+        metrics.append(f'dispatcharr_exporter_port {port_value}')
         metrics.append("")
 
         # M3U Account metrics (optional, enabled by default)
@@ -139,6 +148,10 @@ class PrometheusMetricsCollector:
         
         # Stream metrics with detailed info
         metrics.extend(self._collect_stream_metrics(settings))
+        
+        # Client connection metrics (optional, disabled by default)
+        if settings and settings.get('include_client_stats', False):
+            metrics.extend(self._collect_client_metrics())
         
         # VOD metrics (optional, disabled by default)
         if settings and settings.get('include_vod_stats', False):
@@ -175,8 +188,14 @@ class PrometheusMetricsCollector:
                 metrics.append(f'dispatcharr_m3u_account_status{{status="{status_value}"}} {count}')
             
             # Individual account metrics
-            metrics.append("# HELP dispatcharr_m3u_account_info Information about each M3U account")
-            metrics.append("# TYPE dispatcharr_m3u_account_info gauge")
+            include_legacy = settings and settings.get('include_legacy_metrics', False)
+            
+            if include_legacy:
+                metrics.append("# HELP dispatcharr_m3u_account_info Information about each M3U account (legacy format with stream_count as label)")
+                metrics.append("# TYPE dispatcharr_m3u_account_info gauge")
+            
+            metrics.append("# HELP dispatcharr_m3u_account_stream_count Number of streams configured for this M3U account")
+            metrics.append("# TYPE dispatcharr_m3u_account_stream_count gauge")
             
             for account in all_accounts:
                 account_name = account.name.replace('"', '\\"').replace('\\', '\\\\')
@@ -187,27 +206,35 @@ class PrometheusMetricsCollector:
                 # Count streams from this account
                 stream_count = account.streams.count() if hasattr(account, 'streams') else 0
                 
-                # Build labels
-                labels = [
+                # Base labels for identification
+                base_labels = [
                     f'account_id="{account.id}"',
                     f'account_name="{account_name}"',
                     f'account_type="{account_type}"',
                     f'status="{status}"',
-                    f'is_active="{is_active}"',
-                    f'stream_count="{stream_count}"'
+                    f'is_active="{is_active}"'
                 ]
+                
+                # Legacy format - Build labels with stream_count included
+                legacy_labels = base_labels.copy()
+                legacy_labels.append(f'stream_count="{stream_count}"')
                 
                 # Optionally add username for XC-type accounts
                 if include_urls and account_type == 'XC' and hasattr(account, 'username') and account.username:
                     username = account.username.replace('"', '\\"').replace('\\', '\\\\')
-                    labels.append(f'username="{username}"')
+                    legacy_labels.append(f'username="{username}"')
+                    base_labels.append(f'username="{username}"')
                 
                 # Optionally add server URL
                 if include_urls and account.server_url:
                     server_url = account.server_url.replace('"', '\\"').replace('\\', '\\\\')
-                    labels.append(f'server_url="{server_url}"')
+                    legacy_labels.append(f'server_url="{server_url}"')
+                    base_labels.append(f'server_url="{server_url}"')
                 
-                metrics.append(f'dispatcharr_m3u_account_info{{{",".join(labels)}}} 1')
+                metrics.append(f'dispatcharr_m3u_account_info{{{",".join(legacy_labels)}}} 1')
+                
+                # Add separate gauge for stream count (proper time series)
+                metrics.append(f'dispatcharr_m3u_account_stream_count{{{",".join(base_labels)}}} {stream_count}')
             
         except Exception as e:
             logger.error(f"Error collecting M3U account metrics: {e}")
@@ -311,14 +338,56 @@ class PrometheusMetricsCollector:
         metrics = []
         metrics.append("# HELP dispatcharr_active_streams Total number of active streams")
         metrics.append("# TYPE dispatcharr_active_streams gauge")
-        metrics.append("# HELP dispatcharr_stream_info Detailed information about active streams")
-        metrics.append("# TYPE dispatcharr_stream_info gauge")
+        
+        include_legacy = settings and settings.get('include_legacy_metrics', False)
+        if include_legacy:
+            metrics.append("# HELP dispatcharr_stream_info Detailed information about active streams (legacy format with all values as labels)")
+            metrics.append("# TYPE dispatcharr_stream_info gauge")
+        
+        # Channel number as a gauge (for numeric operations/sorting)
+        metrics.append("# HELP dispatcharr_stream_channel_number Channel number for active stream")
+        metrics.append("# TYPE dispatcharr_stream_channel_number gauge")
+        
+        # Stream ID as a gauge (for tracking which specific stream is active)
+        metrics.append("# HELP dispatcharr_stream_id Active stream ID for channel")
+        metrics.append("# TYPE dispatcharr_stream_id gauge")
+        
+        # Index metric showing which stream is active with identifying information
+        metrics.append("# HELP dispatcharr_stream_index Active stream index for channel (0=primary, >0=fallback)")
+        metrics.append("# TYPE dispatcharr_stream_index gauge")
+        
+        # Metadata/info metric with enrichment labels
+        metrics.append("# HELP dispatcharr_stream_metadata Stream metadata and enrichment information")
+        metrics.append("# TYPE dispatcharr_stream_metadata gauge")
+        
+        # Separate gauge metrics for values that change (recommended for proper time series)
+        metrics.append("# HELP dispatcharr_stream_viewers Current number of viewers per stream")
+        metrics.append("# TYPE dispatcharr_stream_viewers gauge")
+        metrics.append("# HELP dispatcharr_stream_uptime_seconds Stream uptime in seconds since stream started")
+        metrics.append("# TYPE dispatcharr_stream_uptime_seconds counter")
+        metrics.append("# HELP dispatcharr_stream_active_clients Number of active clients connected to stream")
+        metrics.append("# TYPE dispatcharr_stream_active_clients gauge")
+        metrics.append("# HELP dispatcharr_stream_video_bitrate_kbps Video bitrate in kbps")
+        metrics.append("# TYPE dispatcharr_stream_video_bitrate_kbps gauge")
+        metrics.append("# HELP dispatcharr_stream_transcode_bitrate_kbps Transcode output bitrate in kbps")
+        metrics.append("# TYPE dispatcharr_stream_transcode_bitrate_kbps gauge")
+        metrics.append("# HELP dispatcharr_stream_avg_bitrate_kbps Average bitrate in kbps")
+        metrics.append("# TYPE dispatcharr_stream_avg_bitrate_kbps gauge")
+        metrics.append("# HELP dispatcharr_stream_total_transfer_mb Total data transferred in megabytes")
+        metrics.append("# TYPE dispatcharr_stream_total_transfer_mb counter")
+        metrics.append("# HELP dispatcharr_stream_fps Stream frames per second")
+        metrics.append("# TYPE dispatcharr_stream_fps gauge")
+        metrics.append("# HELP dispatcharr_stream_profile_connections Current connections for the M3U profile used by this stream")
+        metrics.append("# TYPE dispatcharr_stream_profile_connections gauge")
+        metrics.append("# HELP dispatcharr_stream_profile_max_connections Maximum connections allowed for the M3U profile")
+        metrics.append("# TYPE dispatcharr_stream_profile_max_connections gauge")
         
         try:
             if self.redis_client:
                 # Count active channel streams and collect detailed info
                 active_streams = 0
-                stream_details = []
+                stream_info_metrics = []
+                stream_value_metrics = []
                 pattern = "channel_stream:*"
                 
                 try:
@@ -450,32 +519,54 @@ class PrometheusMetricsCollector:
                                             except Exception as e:
                                                 logger.debug(f"Error getting M3U profile {profile_id}: {e}")
                                         
-                                        # Build metric labels
-                                        labels = [
+                                        # Build minimal base labels (for joining across metrics)
+                                        base_labels = [
                                             f'channel_uuid="{channel_uuid}"',
+                                            f'channel_number="{channel_number}"'
+                                        ]
+                                        base_labels_str = ",".join(base_labels)
+                                        
+                                        # Parse channel number as float for gauge value
+                                        try:
+                                            channel_number_value = float(channel_number)
+                                        except (ValueError, TypeError):
+                                            channel_number_value = 0.0
+                                        
+                                        # Build metadata labels (all identifying/enrichment information)
+                                        metadata_labels = base_labels + [
                                             f'channel_name="{channel_name}"',
-                                            f'channel_number="{channel_number}"',
-                                            f'logo_url="{logo_url}"',
                                             f'stream_id="{stream_id}"',
-                                            f'stream_index="{stream_index}"',
                                             f'stream_name="{stream_name}"',
                                             f'provider="{provider}"',
                                             f'provider_type="{stream_type}"',
+                                            f'state="{state}"',
+                                            f'logo_url="{logo_url}"',
                                             f'profile_id="{profile_id if profile_id else "none"}"',
                                             f'profile_name="{profile_name}"',
-                                            f'profile_connections="{profile_connections}"',
-                                            f'profile_max_connections="{profile_max}"',
-                                        ]
-                                        
-                                        # Only add viewers if > 0
-                                        if viewers > 0:
-                                            labels.append(f'viewers="{viewers}"')
-                                        
-                                        # Add stream stats
-                                        labels.extend([
                                             f'stream_profile="{stream_profile_name}"',
                                             f'video_codec="{video_codec}"',
-                                            f'resolution="{resolution}"',
+                                            f'resolution="{resolution}"'
+                                        ]
+                                        
+                                        # Add stream index metric (minimal labels, value = index)
+                                        stream_value_metrics.append(
+                                            f'dispatcharr_stream_index{{{base_labels_str}}} {stream_index}'
+                                        )
+                                        
+                                        # Add channel number metric (minimal labels, value = channel_number)
+                                        stream_value_metrics.append(
+                                            f'dispatcharr_stream_channel_number{{{base_labels_str}}} {channel_number_value}'
+                                        )
+                                        
+                                        # Add stream ID metric (minimal labels, value = stream_id)
+                                        stream_value_metrics.append(
+                                            f'dispatcharr_stream_id{{{base_labels_str}}} {stream_id}'
+                                        )
+                                        
+                                        # Build legacy info metric with all values as labels (for backward compatibility)
+                                        legacy_labels = metadata_labels + [
+                                            f'profile_connections="{profile_connections}"',
+                                            f'profile_max_connections="{profile_max}"',
                                             f'fps="{source_fps}"',
                                             f'video_bitrate_kbps="{video_bitrate}"',
                                             f'transcode_bitrate_kbps="{ffmpeg_output_bitrate}"',
@@ -484,11 +575,67 @@ class PrometheusMetricsCollector:
                                             f'uptime_seconds="{uptime_seconds}"',
                                             f'active_clients="{active_clients}"',
                                             f'state="{state}"'
-                                        ])
+                                        ]
                                         
-                                        # Build metric with rich labels including stream stats
-                                        stream_details.append(
-                                            f'dispatcharr_stream_info{{{",".join(labels)}}} 1'
+                                        # Add viewers to legacy labels if > 0
+                                        if viewers > 0:
+                                            legacy_labels.append(f'viewers="{viewers}"')
+                                        
+                                        # Legacy format (only if enabled)
+                                        if include_legacy:
+                                            stream_info_metrics.append(
+                                                f'dispatcharr_stream_info{{{",".join(legacy_labels)}}} 1'
+                                            )
+                                        
+                                        # Create separate gauge metrics for dynamic values
+                                        if viewers > 0:
+                                            stream_value_metrics.append(
+                                                f'dispatcharr_stream_viewers{{{base_labels_str}}} {viewers}'
+                                            )
+                                        
+                                        stream_value_metrics.append(
+                                            f'dispatcharr_stream_uptime_seconds{{{base_labels_str}}} {uptime_seconds}'
+                                        )
+                                        stream_value_metrics.append(
+                                            f'dispatcharr_stream_active_clients{{{base_labels_str}}} {active_clients}'
+                                        )
+                                        
+                                        # Video/bitrate metrics
+                                        if source_fps and source_fps != '0':
+                                            stream_value_metrics.append(
+                                                f'dispatcharr_stream_fps{{{base_labels_str}}} {source_fps}'
+                                            )
+                                        if video_bitrate and video_bitrate != '0':
+                                            stream_value_metrics.append(
+                                                f'dispatcharr_stream_video_bitrate_kbps{{{base_labels_str}}} {video_bitrate}'
+                                            )
+                                        if ffmpeg_output_bitrate and ffmpeg_output_bitrate != '0':
+                                            stream_value_metrics.append(
+                                                f'dispatcharr_stream_transcode_bitrate_kbps{{{base_labels_str}}} {ffmpeg_output_bitrate}'
+                                            )
+                                        if avg_bitrate_kbps > 0:
+                                            stream_value_metrics.append(
+                                                f'dispatcharr_stream_avg_bitrate_kbps{{{base_labels_str}}} {avg_bitrate_kbps}'
+                                            )
+                                        
+                                        # Transfer metrics
+                                        if total_mb > 0:
+                                            stream_value_metrics.append(
+                                                f'dispatcharr_stream_total_transfer_mb{{{base_labels_str}}} {total_mb}'
+                                            )
+                                        
+                                        # Profile connection metrics (scoped to this stream's context)
+                                        if profile_id:
+                                            stream_value_metrics.append(
+                                                f'dispatcharr_stream_profile_connections{{{base_labels_str}}} {profile_connections}'
+                                            )
+                                            stream_value_metrics.append(
+                                                f'dispatcharr_stream_profile_max_connections{{{base_labels_str}}} {profile_max}'
+                                            )
+                                        
+                                        # Add metadata metric last (all identifying/enrichment information)
+                                        stream_value_metrics.append(
+                                            f'dispatcharr_stream_metadata{{{",".join(metadata_labels)}}} 1'
                                         )
                                         
                                     except Stream.DoesNotExist:
@@ -506,9 +653,13 @@ class PrometheusMetricsCollector:
                 # Add total count
                 metrics.append(f"dispatcharr_active_streams {active_streams}")
                 
-                # Add detailed stream info
-                for detail in stream_details:
-                    metrics.append(detail)
+                # Add stream info metrics (static labels)
+                for metric in stream_info_metrics:
+                    metrics.append(metric)
+                
+                # Add stream value metrics (dynamic gauges)
+                for metric in stream_value_metrics:
+                    metrics.append(metric)
                     
         except Exception as e:
             logger.error(f"Error collecting stream metrics: {e}")
@@ -543,8 +694,14 @@ class PrometheusMetricsCollector:
                 metrics.append(f'dispatcharr_epg_source_status{{status="{status_value}"}} {count}')
             
             # Individual EPG source info (exclude dummy)
-            metrics.append("# HELP dispatcharr_epg_source_info Information about each EPG source")
-            metrics.append("# TYPE dispatcharr_epg_source_info gauge")
+            include_legacy = settings and settings.get('include_legacy_metrics', False)
+            
+            if include_legacy:
+                metrics.append("# HELP dispatcharr_epg_source_info Information about each EPG source (legacy format with priority as label)")
+                metrics.append("# TYPE dispatcharr_epg_source_info gauge")
+            
+            metrics.append("# HELP dispatcharr_epg_source_priority Priority value for EPG source (lower is higher priority)")
+            metrics.append("# TYPE dispatcharr_epg_source_priority gauge")
             
             for source in EPGSource.objects.exclude(source_type='dummy'):
                 source_name = source.name.replace('"', '\\"').replace('\\', '\\\\')
@@ -553,27 +710,206 @@ class PrometheusMetricsCollector:
                 is_active = str(source.is_active).lower()
                 priority = source.priority
                 
-                # Build labels
-                labels = [
+                # Base labels for identification
+                base_labels = [
                     f'source_id="{source.id}"',
                     f'source_name="{source_name}"',
                     f'source_type="{source_type}"',
                     f'status="{status}"',
-                    f'is_active="{is_active}"',
-                    f'priority="{priority}"'
+                    f'is_active="{is_active}"'
                 ]
+                
+                # Legacy format - Build labels with priority included
+                legacy_labels = base_labels.copy()
+                legacy_labels.append(f'priority="{priority}"')
                 
                 # Optionally add source URL
                 if include_urls and source.url:
                     source_url = source.url.replace('"', '\\"').replace('\\', '\\\\')
-                    labels.append(f'url="{source_url}"')
+                    legacy_labels.append(f'url="{source_url}"')
+                    base_labels.append(f'url="{source_url}"')
                 
-                metrics.append(f'dispatcharr_epg_source_info{{{",".join(labels)}}} 1')
+                # Legacy format (only if enabled)
+                if include_legacy:
+                    metrics.append(f'dispatcharr_epg_source_info{{{",".join(legacy_labels)}}} 1')
+                
+                # Add separate gauge for priority (proper time series)
+                metrics.append(f'dispatcharr_epg_source_priority{{{",".join(base_labels)}}} {priority}')
         
         except Exception as e:
             logger.error(f"Error collecting EPG metrics: {e}")
         
         metrics.append("")
+        return metrics
+
+    def _collect_client_metrics(self) -> list:
+        """Collect individual client connection metrics"""
+        metrics = []
+        
+        try:
+            from apps.channels.models import Channel
+            
+            # Header for client metrics
+            metrics.append("# HELP dispatcharr_active_clients Total number of active client connections")
+            metrics.append("# TYPE dispatcharr_active_clients gauge")
+            metrics.append("# HELP dispatcharr_client_info Client connection metadata")
+            metrics.append("# TYPE dispatcharr_client_info gauge")
+            metrics.append("# HELP dispatcharr_client_connection_duration_seconds Duration of client connection in seconds")
+            metrics.append("# TYPE dispatcharr_client_connection_duration_seconds gauge")
+            metrics.append("# HELP dispatcharr_client_bytes_sent Total bytes sent to client")
+            metrics.append("# TYPE dispatcharr_client_bytes_sent counter")
+            metrics.append("# HELP dispatcharr_client_avg_transfer_rate_kbps Average transfer rate to client in kbps")
+            metrics.append("# TYPE dispatcharr_client_avg_transfer_rate_kbps gauge")
+            metrics.append("# HELP dispatcharr_client_current_transfer_rate_kbps Current transfer rate to client in kbps")
+            metrics.append("# TYPE dispatcharr_client_current_transfer_rate_kbps gauge")
+            
+            # Scan for all active stream channels
+            cursor = 0
+            current_time = time.time()
+            total_clients = 0
+            client_metrics = []  # Collect individual client metrics separately
+            
+            while True:
+                cursor, keys = self.redis_client.scan(
+                    cursor, 
+                    match="ts_proxy:channel:*:clients",
+                    count=100
+                )
+                
+                for client_set_key in keys:
+                    try:
+                        # Extract channel UUID from key: ts_proxy:channel:{uuid}:clients
+                        parts = client_set_key.decode('utf-8') if isinstance(client_set_key, bytes) else client_set_key
+                        parts = parts.split(':')
+                        if len(parts) < 4:
+                            continue
+                        
+                        channel_uuid = parts[2]
+                        
+                        # Get channel details
+                        try:
+                            channel = Channel.objects.get(uuid=channel_uuid)
+                            channel_name = channel.name.replace('"', '\\"').replace('\\', '\\\\')
+                            channel_number = getattr(channel, 'channel_number', 'N/A')
+                        except Channel.DoesNotExist:
+                            continue
+                        
+                        # Get all client IDs for this channel
+                        client_ids = self.redis_client.smembers(client_set_key)
+                        total_clients += len(client_ids)
+                        
+                        for client_id_bytes in client_ids:
+                            try:
+                                client_id = client_id_bytes.decode('utf-8') if isinstance(client_id_bytes, bytes) else client_id_bytes
+                                
+                                # Get client metadata from Redis
+                                client_key = f"ts_proxy:channel:{channel_uuid}:clients:{client_id}"
+                                client_data = self.redis_client.hgetall(client_key)
+                                
+                                if not client_data:
+                                    continue
+                                
+                                # Helper to decode Redis values
+                                def get_client_field(field, default='unknown'):
+                                    val = client_data.get(field.encode('utf-8') if isinstance(field, str) else field, default.encode('utf-8'))
+                                    return val.decode('utf-8') if isinstance(val, bytes) else str(default)
+                                
+                                # Extract client information
+                                ip_address = get_client_field('ip_address', 'unknown')
+                                user_agent = get_client_field('user_agent', 'unknown')
+                                worker_id = get_client_field('worker_id', 'unknown')
+                                
+                                # Escape special characters for Prometheus labels
+                                ip_address_safe = ip_address.replace('"', '\\"').replace('\\', '\\\\')
+                                user_agent_safe = user_agent.replace('"', '\\"').replace('\\', '\\\\').replace('\n', ' ').replace('\r', '')
+                                client_id_safe = client_id.replace('"', '\\"').replace('\\', '\\\\')
+                                worker_id_safe = worker_id.replace('"', '\\"').replace('\\', '\\\\')
+                                
+                                # Calculate connection duration
+                                connection_duration = 0
+                                connected_at_str = get_client_field('connected_at', '0')
+                                try:
+                                    connected_at = float(connected_at_str)
+                                    connection_duration = int(current_time - connected_at)
+                                except (ValueError, TypeError):
+                                    pass
+                                
+                                # Get transfer statistics
+                                bytes_sent = 0
+                                bytes_sent_str = get_client_field('bytes_sent', '0')
+                                try:
+                                    bytes_sent = int(bytes_sent_str)
+                                except (ValueError, TypeError):
+                                    pass
+                                
+                                avg_rate_kbps = 0.0
+                                avg_rate_str = get_client_field('avg_rate_KBps', '0')
+                                try:
+                                    avg_rate_kbps = float(avg_rate_str)
+                                except (ValueError, TypeError):
+                                    pass
+                                
+                                current_rate_kbps = 0.0
+                                current_rate_str = get_client_field('current_rate_KBps', '0')
+                                try:
+                                    current_rate_kbps = float(current_rate_str)
+                                except (ValueError, TypeError):
+                                    pass
+                                
+                                # Last activity time
+                                last_active_ago = 0
+                                last_active_str = get_client_field('last_active', '0')
+                                try:
+                                    last_active = float(last_active_str)
+                                    last_active_ago = int(current_time - last_active)
+                                except (ValueError, TypeError):
+                                    pass
+                                
+                                # Base labels for all client metrics (minimal for joining)
+                                base_labels = [
+                                    f'client_id="{client_id_safe}"',
+                                    f'channel_uuid="{channel_uuid}"',
+                                    f'channel_number="{channel_number}"'
+                                ]
+                                base_labels_str = ','.join(base_labels)
+                                
+                                # Info metric with all metadata
+                                info_labels = base_labels + [
+                                    f'ip_address="{ip_address_safe}"',
+                                    f'user_agent="{user_agent_safe}"',
+                                    f'worker_id="{worker_id_safe}"'
+                                ]
+                                client_metrics.append(f'dispatcharr_client_info{{{",".join(info_labels)}}} 1')
+                                
+                                # Value metrics with minimal labels
+                                if connection_duration > 0:
+                                    client_metrics.append(f'dispatcharr_client_connection_duration_seconds{{{base_labels_str}}} {connection_duration}')
+                                
+                                if bytes_sent > 0:
+                                    client_metrics.append(f'dispatcharr_client_bytes_sent{{{base_labels_str}}} {bytes_sent}')
+                                
+                                if avg_rate_kbps > 0:
+                                    client_metrics.append(f'dispatcharr_client_avg_transfer_rate_kbps{{{base_labels_str}}} {avg_rate_kbps}')
+                                
+                                if current_rate_kbps > 0:
+                                    client_metrics.append(f'dispatcharr_client_current_transfer_rate_kbps{{{base_labels_str}}} {current_rate_kbps}')
+                                
+                            except Exception as e:
+                                logger.debug(f"Error processing client {client_id}: {e}")
+                                
+                    except Exception as e:
+                        logger.debug(f"Error processing client set {client_set_key}: {e}")
+                
+                if cursor == 0:
+                    break
+            
+            # Output total client count first, then individual client metrics
+            metrics.append(f"dispatcharr_active_clients {total_clients}")
+            metrics.extend(client_metrics)
+            
+        except Exception as e:
+            logger.error(f"Error collecting client metrics: {e}")
+        
         return metrics
 
     def _collect_vod_metrics(self) -> list:
@@ -912,11 +1248,25 @@ class Plugin:
             "help_text": "Include VOD session and stream metrics in the output"
         },
         {
+            "id": "include_client_stats",
+            "label": "Include Client Connection Statistics",
+            "type": "boolean",
+            "default": False,
+            "help_text": "Include individual client connection information."
+        },
+        {
             "id": "include_source_urls",
             "label": "Include Provider/Source Information",
             "type": "boolean",
             "default": False,
             "help_text": "Include server URLs & XC usernames in M3U account and EPG source metrics. Ensure this is DISABLED if sharing output in Discord for troubleshooting."
+        },
+        {
+            "id": "include_legacy_metrics",
+            "label": "Include Legacy Metric Formats (Deprecated)",
+            "type": "boolean",
+            "default": False,
+            "help_text": "Include backward-compatible metrics with dynamic values as labels (e.g., dispatcharr_stream_info with all stats as labels). This format was used in v1.1.0 and earlier. NOT recommended - use the new separate gauge metrics instead for proper time series. Only enable if you have existing dashboards that need migration time."
         }
     ]
 
