@@ -1,0 +1,747 @@
+# Dispatcharr Exporter Metrics Reference
+
+Complete reference for all metrics exposed by the Dispatcharr Prometheus Exporter plugin.
+
+## Table of Contents
+
+- [Core Metrics](#core-metrics)
+- [Exporter Metrics](#exporter-metrics)
+- [M3U Account Metrics](#m3u-account-metrics)
+- [EPG Source Metrics](#epg-source-metrics)
+- [Channel Metrics](#channel-metrics)
+- [Stream Metrics](#stream-metrics)
+- [Profile Metrics](#profile-metrics)
+- [VOD Metrics](#vod-metrics)
+- [Legacy Metrics](#legacy-metrics)
+
+---
+
+## Core Metrics
+
+### `dispatcharr_info`
+**Type:** gauge  
+**Value:** Always 1  
+**Labels:**
+- `version` - Dispatcharr version (includes timestamp for dev builds)
+
+**Description:** Provides version information about the Dispatcharr instance.
+
+**Example:**
+```
+dispatcharr_info{version="v0.1.0-20251222123417"} 1
+```
+
+---
+
+## Exporter Metrics
+
+### `dispatcharr_exporter_info`
+**Type:** gauge  
+**Value:** Always 1  
+**Labels:**
+- `version` - Exporter plugin version
+
+**Description:** Provides version information about the exporter plugin.
+
+**Example:**
+```
+dispatcharr_exporter_info{version="1.2.0"} 1
+```
+
+### `dispatcharr_exporter_settings_info`
+**Type:** gauge  
+**Value:** Always 1  
+**Labels:** All plugin settings as labels (for debugging/support)
+- `auto_start` - Auto-start enabled (true/false)
+- `suppress_access_logs` - Access log suppression (true/false)
+- `disable_update_notifications` - Update notifications disabled (true/false)
+- `port` - Metrics server port
+- `host` - Metrics server host
+- `base_url` - Dispatcharr base URL
+- `include_m3u_stats` - M3U stats included (true/false)
+- `include_epg_stats` - EPG stats included (true/false)
+- `include_vod_stats` - VOD stats included (true/false)
+- `include_client_stats` - Client stats included (true/false)
+- `include_source_urls` - Source URLs included (true/false)
+- `include_legacy_metrics` - Legacy metrics included (true/false)
+
+**Description:** Info metric showing all exporter configuration settings.
+
+**Example:**
+```
+dispatcharr_exporter_settings_info{auto_start="true",suppress_access_logs="true",disable_update_notifications="false",port="9192",host="0.0.0.0",base_url="",include_m3u_stats="true",include_epg_stats="false",include_vod_stats="false",include_client_stats="false",include_source_urls="false",include_legacy_metrics="false"} 1
+```
+
+### `dispatcharr_exporter_port`
+**Type:** gauge  
+**Value:** The configured port number  
+**Labels:** None
+
+**Description:** The port number the metrics server is configured to run on.
+
+**Example:**
+```
+dispatcharr_exporter_port 9192
+```
+
+---
+
+## M3U Account Metrics
+
+*Optional metrics - enabled by default via `include_m3u_stats` setting*
+
+### `dispatcharr_m3u_accounts`
+**Type:** gauge  
+**Value:** Account count  
+**Labels:**
+- `status` - "total" or "active"
+
+**Description:** Total number of M3U accounts and active M3U accounts.
+
+**Example:**
+```
+dispatcharr_m3u_accounts{status="total"} 5
+dispatcharr_m3u_accounts{status="active"} 4
+```
+
+### `dispatcharr_m3u_account_status`
+**Type:** gauge  
+**Value:** Count of accounts with this status  
+**Labels:**
+- `status` - Account status (idle, fetching, parsing, error, success, etc.)
+
+**Description:** Breakdown of M3U account counts by status.
+
+**Example:**
+```
+dispatcharr_m3u_account_status{status="success"} 3
+dispatcharr_m3u_account_status{status="error"} 1
+dispatcharr_m3u_account_status{status="idle"} 1
+```
+
+### `dispatcharr_m3u_account_stream_count`
+**Type:** gauge  
+**Value:** Number of streams configured for this account  
+**Labels:**
+- `account_id` - Account database ID
+- `account_name` - Account name
+- `account_type` - Account type (XC, STD, etc.)
+- `status` - Account status
+- `is_active` - Active state (true/false)
+- `username` - XC username (optional, only if `include_source_urls=true`)
+- `server_url` - Server URL (optional, only if `include_source_urls=true`)
+
+**Description:** Number of streams configured for each M3U account.
+
+**Example:**
+```
+dispatcharr_m3u_account_stream_count{account_id="1",account_name="Provider A",account_type="XC",status="success",is_active="true"} 150
+```
+
+---
+
+## EPG Source Metrics
+
+*Optional metrics - disabled by default via `include_epg_stats` setting*
+
+### `dispatcharr_epg_sources`
+**Type:** gauge  
+**Value:** Source count  
+**Labels:**
+- `status` - "total" or "active"
+
+**Description:** Total number of EPG sources and active EPG sources.
+
+**Example:**
+```
+dispatcharr_epg_sources{status="total"} 3
+dispatcharr_epg_sources{status="active"} 2
+```
+
+### `dispatcharr_epg_source_status`
+**Type:** gauge  
+**Value:** Count of sources with this status  
+**Labels:**
+- `status` - EPG source status
+
+**Description:** Breakdown of EPG source counts by status.
+
+**Example:**
+```
+dispatcharr_epg_source_status{status="success"} 2
+dispatcharr_epg_source_status{status="error"} 1
+```
+
+### `dispatcharr_epg_source_priority`
+**Type:** gauge  
+**Value:** Priority value (lower is higher priority)  
+**Labels:**
+- `source_id` - EPG source database ID
+- `source_name` - EPG source name
+- `source_type` - Source type (xmltv, m3u, etc.)
+- `status` - Source status
+- `is_active` - Active state (true/false)
+- `url` - Source URL (optional, only if `include_source_urls=true`)
+
+**Description:** Priority value for each EPG source.
+
+**Example:**
+```
+dispatcharr_epg_source_priority{source_id="1",source_name="EPG Source 1",source_type="xmltv",status="success",is_active="true"} 1
+```
+
+---
+
+## Channel Metrics
+
+### `dispatcharr_channels`
+**Type:** gauge  
+**Value:** Channel count  
+**Labels:**
+- `status` - "total"
+
+**Description:** Total number of channels.
+
+**Example:**
+```
+dispatcharr_channels{status="total"} 250
+```
+
+### `dispatcharr_channel_groups`
+**Type:** gauge  
+**Value:** Channel group count  
+**Labels:** None
+
+**Description:** Total number of channel groups.
+
+**Example:**
+```
+dispatcharr_channel_groups 15
+```
+
+---
+
+## Stream Metrics
+
+### Value Metrics (Minimal Labels)
+
+All value metrics use only `channel_uuid` and `channel_number` as labels for efficient querying and joining.
+
+#### `dispatcharr_active_streams`
+**Type:** gauge  
+**Value:** Count of active streams  
+**Labels:** None
+
+**Description:** Total number of currently active streams.
+
+**Example:**
+```
+dispatcharr_active_streams 12
+```
+
+#### `dispatcharr_stream_viewers`
+**Type:** gauge  
+**Value:** Number of viewers  
+**Labels:**
+- `channel_uuid` - Channel UUID
+- `channel_number` - Channel number
+
+**Description:** Current number of viewers for this stream (only present if > 0).
+
+**Example:**
+```
+dispatcharr_stream_viewers{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 3
+```
+
+#### `dispatcharr_stream_uptime_seconds`
+**Type:** counter  
+**Value:** Seconds since stream started  
+**Labels:**
+- `channel_uuid` - Channel UUID
+- `channel_number` - Channel number
+
+**Description:** Stream uptime in seconds. Resets when stream restarts.
+
+**Example:**
+```
+dispatcharr_stream_uptime_seconds{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 3847
+```
+
+#### `dispatcharr_stream_active_clients`
+**Type:** gauge  
+**Value:** Number of connected clients  
+**Labels:**
+- `channel_uuid` - Channel UUID
+- `channel_number` - Channel number
+
+**Description:** Number of active clients connected to this stream.
+
+**Example:**
+```
+dispatcharr_stream_active_clients{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 1
+```
+
+#### `dispatcharr_stream_fps`
+**Type:** gauge  
+**Value:** Frames per second  
+**Labels:**
+- `channel_uuid` - Channel UUID
+- `channel_number` - Channel number
+
+**Description:** Current stream frames per second.
+
+**Example:**
+```
+dispatcharr_stream_fps{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 59.94
+```
+
+#### `dispatcharr_stream_video_bitrate_kbps`
+**Type:** gauge  
+**Value:** Bitrate in kbps  
+**Labels:**
+- `channel_uuid` - Channel UUID
+- `channel_number` - Channel number
+
+**Description:** Source video bitrate in kilobits per second.
+
+**Example:**
+```
+dispatcharr_stream_video_bitrate_kbps{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 8500
+```
+
+#### `dispatcharr_stream_transcode_bitrate_kbps`
+**Type:** gauge  
+**Value:** Bitrate in kbps  
+**Labels:**
+- `channel_uuid` - Channel UUID
+- `channel_number` - Channel number
+
+**Description:** Transcode output bitrate in kilobits per second.
+
+**Example:**
+```
+dispatcharr_stream_transcode_bitrate_kbps{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 5383.4
+```
+
+#### `dispatcharr_stream_avg_bitrate_kbps`
+**Type:** gauge  
+**Value:** Bitrate in kbps  
+**Labels:**
+- `channel_uuid` - Channel UUID
+- `channel_number` - Channel number
+
+**Description:** Calculated average bitrate in kilobits per second.
+
+**Example:**
+```
+dispatcharr_stream_avg_bitrate_kbps{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 5200.5
+```
+
+#### `dispatcharr_stream_total_transfer_mb`
+**Type:** counter  
+**Value:** Megabytes transferred  
+**Labels:**
+- `channel_uuid` - Channel UUID
+- `channel_number` - Channel number
+
+**Description:** Total data transferred by this stream in megabytes. Cumulative counter.
+
+**Example:**
+```
+dispatcharr_stream_total_transfer_mb{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 1024.5
+```
+
+### Context Metrics (For Enrichment)
+
+All context metrics use minimal labels (`channel_uuid`, `channel_number`) for consistency.
+
+#### `dispatcharr_stream_channel_number`
+**Type:** gauge  
+**Value:** The channel number  
+**Labels:**
+- `channel_uuid` - Channel UUID
+- `channel_number` - Channel number
+
+**Description:** Channel number as a numeric value for sorting and filtering.
+
+**Example:**
+```
+dispatcharr_stream_channel_number{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 1001.0
+```
+
+#### `dispatcharr_stream_id`
+**Type:** gauge  
+**Value:** The stream database ID  
+**Labels:**
+- `channel_uuid` - Channel UUID
+- `channel_number` - Channel number
+
+**Description:** Database ID of the currently active stream. Value changes indicate stream switched.
+
+**Example:**
+```
+dispatcharr_stream_id{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 2954
+```
+
+#### `dispatcharr_stream_index`
+**Type:** gauge  
+**Value:** The stream index (0-based)  
+**Labels:**
+- `channel_uuid` - Channel UUID
+- `channel_number` - Channel number
+
+**Description:** Position of active stream in channel's stream list. 0 = primary stream, >0 = fallback/backup stream.
+
+**Example:**
+```
+dispatcharr_stream_index{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 0
+```
+
+#### `dispatcharr_stream_metadata`
+**Type:** gauge  
+**Value:** Always 1  
+**Labels:**
+- `channel_uuid` - Channel UUID
+- `channel_number` - Channel number
+- `channel_name` - Channel name
+- `stream_id` - Stream database ID
+- `stream_name` - Stream name
+- `provider` - M3U account/provider name
+- `provider_type` - Provider type (XC, STD, etc.)
+- `state` - Stream state (active, waiting_for_clients, buffering, error, etc.)
+- `logo_url` - Channel logo URL
+- `profile_id` - M3U profile database ID
+- `profile_name` - M3U profile name
+- `stream_profile` - Transcode profile name
+- `video_codec` - Video codec (h264, hevc, etc.)
+- `resolution` - Video resolution (1920x1080, etc.)
+
+**Description:** Full metadata for the active stream. Always output last for each stream. Use for joining to enrich other metrics.
+
+**Example:**
+```
+dispatcharr_stream_metadata{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0",channel_name="CBC Toronto",stream_id="2954",stream_name="CBC Toronto",provider="Provider A",provider_type="XC",state="active",logo_url="/api/channels/logos/1/cache/",profile_id="3",profile_name="Default",stream_profile="ffmpeg",video_codec="h264",resolution="1920x1080"} 1
+```
+
+---
+
+## Client Connection Metrics
+
+*Optional metrics - disabled by default via `include_client_stats` setting*
+
+### `dispatcharr_active_clients`
+**Type:** gauge  
+**Value:** Count of active client connections  
+**Labels:** None
+
+**Description:** Total number of currently active client connections across all streams.
+
+**Example:**
+```
+dispatcharr_active_clients 15
+```
+
+### `dispatcharr_client_info`
+**Type:** gauge  
+**Value:** Always 1  
+**Labels:**
+- `client_id` - Unique client connection ID
+- `channel_uuid` - Channel UUID
+- `channel_number` - Channel number
+- `ip_address` - Client IP address
+- `user_agent` - Client user agent string
+- `worker_id` - Dispatcharr worker ID handling the connection
+
+**Description:** Metadata for each connected client. Use for enrichment joins with other client metrics. Join with `dispatcharr_stream_metadata` to get channel name.
+
+**Example:**
+```
+dispatcharr_client_info{client_id="client_1735492847123_4567",channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0",ip_address="192.168.1.100",user_agent="VLC/3.0.16 LibVLC/3.0.16",worker_id="worker_1"} 1
+```
+
+### `dispatcharr_client_connection_duration_seconds`
+**Type:** gauge  
+**Value:** Duration in seconds since client connected  
+**Labels:**
+- `client_id` - Unique client connection ID
+- `channel_uuid` - Channel UUID
+- `channel_number` - Channel number
+
+**Description:** How long this client has been connected to the stream.
+
+**Example:**
+```
+dispatcharr_client_connection_duration_seconds{client_id="client_1735492847123_4567",channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 3847
+```
+
+### `dispatcharr_client_bytes_sent`
+**Type:** counter  
+**Value:** Total bytes sent to client  
+**Labels:**
+- `client_id` - Unique client connection ID
+- `channel_uuid` - Channel UUID
+- `channel_number` - Channel number
+
+**Description:** Cumulative bytes transferred to this client connection.
+
+**Example:**
+```
+dispatcharr_client_bytes_sent{client_id="client_1735492847123_4567",channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 524288000
+```
+
+### `dispatcharr_client_avg_transfer_rate_kbps`
+**Type:** gauge  
+**Value:** Average transfer rate in kilobits per second  
+**Labels:**
+- `client_id` - Unique client connection ID
+- `channel_uuid` - Channel UUID
+- `channel_number` - Channel number
+
+**Description:** Average data transfer rate to this client over the connection lifetime.
+
+**Example:**
+```
+dispatcharr_client_avg_transfer_rate_kbps{client_id="client_1735492847123_4567",channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 5200.5
+```
+
+### `dispatcharr_client_current_transfer_rate_kbps`
+**Type:** gauge  
+**Value:** Current transfer rate in kilobits per second  
+**Labels:**
+- `client_id` - Unique client connection ID
+- `channel_uuid` - Channel UUID
+- `channel_number` - Channel number
+
+**Description:** Current/recent data transfer rate to this client.
+
+**Example:**
+```
+dispatcharr_client_current_transfer_rate_kbps{client_id="client_1735492847123_4567",channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 5400.2
+```
+
+---
+
+## Profile Metrics
+
+*Optional metrics - enabled by default via `include_m3u_stats` setting*
+
+### `dispatcharr_profile_connections`
+**Type:** gauge  
+**Value:** Current connection count  
+**Labels:**
+- `profile_id` - Profile database ID
+- `profile_name` - Profile name
+- `account_name` - M3U account name
+
+**Description:** Current number of connections for this M3U profile.
+
+**Example:**
+```
+dispatcharr_profile_connections{profile_id="3",profile_name="Default",account_name="Provider A"} 5
+```
+
+### `dispatcharr_profile_max_connections`
+**Type:** gauge  
+**Value:** Maximum allowed connections  
+**Labels:**
+- `profile_id` - Profile database ID
+- `profile_name` - Profile name
+- `account_name` - M3U account name
+
+**Description:** Maximum allowed connections for this M3U profile (0 = unlimited).
+
+**Example:**
+```
+dispatcharr_profile_max_connections{profile_id="3",profile_name="Default",account_name="Provider A"} 10
+```
+
+### `dispatcharr_profile_connection_usage`
+**Type:** gauge  
+**Value:** Usage ratio (0.0 to 1.0)  
+**Labels:**
+- `profile_id` - Profile database ID
+- `profile_name` - Profile name
+- `account_name` - M3U account name
+
+**Description:** Connection usage ratio (current/max). Only present if max_connections > 0.
+
+**Example:**
+```
+dispatcharr_profile_connection_usage{profile_id="3",profile_name="Default",account_name="Provider A"} 0.5
+```
+
+### `dispatcharr_stream_profile_connections`
+**Type:** gauge  
+**Value:** Current connection count  
+**Labels:**
+- `channel_uuid` - Channel UUID
+- `channel_number` - Channel number
+
+**Description:** Current connections for the M3U profile used by this specific stream.
+
+**Example:**
+```
+dispatcharr_stream_profile_connections{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 0
+```
+
+### `dispatcharr_stream_profile_max_connections`
+**Type:** gauge  
+**Value:** Maximum allowed connections  
+**Labels:**
+- `channel_uuid` - Channel UUID
+- `channel_number` - Channel number
+
+**Description:** Maximum allowed connections for the M3U profile used by this stream.
+
+**Example:**
+```
+dispatcharr_stream_profile_max_connections{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 0
+```
+
+---
+
+## VOD Metrics
+
+*Optional metrics - disabled by default via `include_vod_stats` setting*
+
+### `dispatcharr_vod_sessions`
+**Type:** gauge  
+**Value:** Session count  
+**Labels:** None
+
+**Description:** Total number of active VOD (Video on Demand) sessions.
+
+**Example:**
+```
+dispatcharr_vod_sessions 3
+```
+
+### `dispatcharr_vod_active_streams`
+**Type:** gauge  
+**Value:** Active stream count  
+**Labels:** None
+
+**Description:** Total number of active VOD streams.
+
+**Example:**
+```
+dispatcharr_vod_active_streams 3
+```
+
+---
+
+## Legacy Metrics
+
+*Deprecated metrics - disabled by default via `include_legacy_metrics` setting*
+
+**Warning:** These metrics are from v1.1.0 and earlier. They are NOT recommended as they create new time series whenever any value changes. Use the new layered metrics instead.
+
+### `dispatcharr_stream_info`
+**Type:** gauge  
+**Value:** Always 1  
+**Labels:** ALL stream information as labels (values and metadata mixed)
+
+**Description:** Legacy format with all stream statistics as labels. Creates high cardinality and new series on every value change.
+
+**Migration:** Use the new layered metrics:
+- Use `dispatcharr_stream_metadata` for static metadata
+- Use separate value metrics (`dispatcharr_stream_fps`, `dispatcharr_stream_uptime_seconds`, etc.) for dynamic values
+- Join metrics using `channel_uuid` and `channel_number`
+
+### `dispatcharr_m3u_account_info`
+**Type:** gauge  
+**Value:** Always 1  
+**Labels:** Account information with `stream_count` as a label
+
+**Description:** Legacy format with stream count as a label.
+
+**Migration:** Use `dispatcharr_m3u_account_stream_count` for the stream count as a proper gauge value.
+
+### `dispatcharr_epg_source_info`
+**Type:** gauge  
+**Value:** Always 1  
+**Labels:** EPG source information with `priority` as a label
+
+**Description:** Legacy format with priority as a label.
+
+**Migration:** Use `dispatcharr_epg_source_priority` for the priority as a proper gauge value.
+
+---
+
+## Common PromQL Query Patterns
+
+### Basic Queries
+```promql
+# All active streams
+dispatcharr_active_streams
+
+# All active clients
+dispatcharr_active_clients
+
+# FPS for specific channel
+dispatcharr_stream_fps{channel_uuid="..."}
+
+# Detect fallback (backup stream active)
+dispatcharr_stream_index > 0
+
+# Sort channels by number
+sort(dispatcharr_channel_number)
+
+# Client connection durations
+dispatcharr_client_connection_duration_seconds
+
+# Clients connected for over 1 hour
+dispatcharr_client_connection_duration_seconds > 3600
+```
+
+### Client Queries
+```promql
+# Total bytes sent to all clients
+sum(dispatcharr_client_bytes_sent)
+
+# Total bytes sent per channel
+sum by (channel_uuid, channel_number) (dispatcharr_client_bytes_sent)
+
+# Average transfer rate across all clients
+avg(dispatcharr_client_avg_transfer_rate_kbps)
+
+# Client connection duration with IP and user agent
+dispatcharr_client_connection_duration_seconds
+  * on(client_id, channel_uuid, channel_number) group_left(ip_address, user_agent)
+  dispatcharr_client_info
+
+# Client info with channel name (double join)
+dispatcharr_client_info
+  * on(channel_uuid, channel_number) group_left(channel_name, provider)
+  dispatcharr_stream_metadata
+```
+
+### Enriched Queries (with joins)
+```promql
+# FPS with provider information
+dispatcharr_stream_fps
+  * on(channel_uuid, channel_number) group_left(provider, stream_name)
+  dispatcharr_stream_metadata
+
+# Total transfer with full metadata
+dispatcharr_stream_total_transfer_mb
+  * on(channel_uuid, channel_number) group_left(logo_url, resolution, video_codec)
+  dispatcharr_stream_metadata
+
+# Stream uptime with index
+dispatcharr_stream_uptime_seconds
+  + on(channel_uuid, channel_number)
+  dispatcharr_stream_index
+```
+
+### Alerts
+```promql
+# Alert on stream fallback
+dispatcharr_stream_index > 0
+
+# Alert on high profile usage
+dispatcharr_profile_connection_usage > 0.9
+
+# Alert on M3U account errors
+dispatcharr_m3u_account_status{status="error"} > 0
+```
