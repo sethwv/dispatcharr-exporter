@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 # Plugin configuration - update all settings here
 PLUGIN_CONFIG = {
-    "version": "-dev-b3943d74-20251229190738",
+    "version": "-dev-a1b93a97-20251230111453",
     "name": "Dispatcharr Exporter",
     "author": "SethWV",
     "description": "Expose Dispatcharr metrics in Prometheus exporter-compatible format for monitoring. Configuration changes require a restart of the metrics server. https://github.com/sethwv/dispatcharr-exporter/releases/",
@@ -429,12 +429,12 @@ class PrometheusMetricsCollector:
         metrics.append("# TYPE dispatcharr_stream_uptime_seconds counter")
         metrics.append("# HELP dispatcharr_stream_active_clients Number of active clients connected to stream")
         metrics.append("# TYPE dispatcharr_stream_active_clients gauge")
-        metrics.append("# HELP dispatcharr_stream_video_bitrate_kbps Video bitrate in kbps")
-        metrics.append("# TYPE dispatcharr_stream_video_bitrate_kbps gauge")
-        metrics.append("# HELP dispatcharr_stream_transcode_bitrate_kbps Transcode output bitrate in kbps")
-        metrics.append("# TYPE dispatcharr_stream_transcode_bitrate_kbps gauge")
-        metrics.append("# HELP dispatcharr_stream_avg_bitrate_kbps Average bitrate in kbps")
-        metrics.append("# TYPE dispatcharr_stream_avg_bitrate_kbps gauge")
+        metrics.append("# HELP dispatcharr_stream_video_bitrate_bps Video bitrate in bits per second")
+        metrics.append("# TYPE dispatcharr_stream_video_bitrate_bps gauge")
+        metrics.append("# HELP dispatcharr_stream_transcode_bitrate_bps Transcode output bitrate in bits per second")
+        metrics.append("# TYPE dispatcharr_stream_transcode_bitrate_bps gauge")
+        metrics.append("# HELP dispatcharr_stream_avg_bitrate_bps Average bitrate in bits per second")
+        metrics.append("# TYPE dispatcharr_stream_avg_bitrate_bps gauge")
         metrics.append("# HELP dispatcharr_stream_total_transfer_mb Total data transferred in megabytes")
         metrics.append("# TYPE dispatcharr_stream_total_transfer_mb counter")
         metrics.append("# HELP dispatcharr_stream_fps Stream frames per second")
@@ -535,8 +535,8 @@ class PrometheusMetricsCollector:
                                     total_bytes = int(get_metadata(ChannelMetadataField.TOTAL_BYTES, '0'))
                                     total_mb = round(total_bytes / 1024 / 1024, 2)
                                     
-                                    # Calculate average bitrate
-                                    avg_bitrate_kbps = round((total_bytes * 8 / 1024 / uptime_seconds), 2) if uptime_seconds > 0 else 0
+                                    # Calculate average bitrate in bps
+                                    avg_bitrate_bps = round((total_bytes * 8 / uptime_seconds), 2) if uptime_seconds > 0 else 0
                                     
                                     # Get client count from Redis (also uses UUID)
                                     client_set_key = f"ts_proxy:channel:{channel_uuid}:clients"
@@ -631,13 +631,14 @@ class PrometheusMetricsCollector:
                                         )
                                         
                                         # Build legacy info metric with all values as labels (for backward compatibility)
+                                        # Note: bitrate values are converted to bps for consistency
                                         legacy_labels = metadata_labels + [
                                             f'profile_connections="{profile_connections}"',
                                             f'profile_max_connections="{profile_max}"',
                                             f'fps="{source_fps}"',
-                                            f'video_bitrate_kbps="{video_bitrate}"',
-                                            f'transcode_bitrate_kbps="{ffmpeg_output_bitrate}"',
-                                            f'avg_bitrate_kbps="{avg_bitrate_kbps}"',
+                                            f'video_bitrate_bps="{float(video_bitrate) * 1000 if video_bitrate and video_bitrate != "0" else 0}"',
+                                            f'transcode_bitrate_bps="{float(ffmpeg_output_bitrate) * 1000 if ffmpeg_output_bitrate and ffmpeg_output_bitrate != "0" else 0}"',
+                                            f'avg_bitrate_bps="{avg_bitrate_bps}"',
                                             f'total_transfer_mb="{total_mb}"',
                                             f'uptime_seconds="{uptime_seconds}"',
                                             f'active_clients="{active_clients}"'
@@ -657,22 +658,24 @@ class PrometheusMetricsCollector:
                                             f'dispatcharr_stream_active_clients{{{base_labels_str}}} {active_clients}'
                                         )
                                         
-                                        # Video/bitrate metrics
+                                        # Video/bitrate metrics (convert kbps to bps)
                                         if source_fps and source_fps != '0':
                                             stream_value_metrics.append(
                                                 f'dispatcharr_stream_fps{{{base_labels_str}}} {source_fps}'
                                             )
                                         if video_bitrate and video_bitrate != '0':
+                                            video_bitrate_bps = float(video_bitrate) * 1000  # Convert kbps to bps
                                             stream_value_metrics.append(
-                                                f'dispatcharr_stream_video_bitrate_kbps{{{base_labels_str}}} {video_bitrate}'
+                                                f'dispatcharr_stream_video_bitrate_bps{{{base_labels_str}}} {video_bitrate_bps}'
                                             )
                                         if ffmpeg_output_bitrate and ffmpeg_output_bitrate != '0':
+                                            ffmpeg_output_bitrate_bps = float(ffmpeg_output_bitrate) * 1000  # Convert kbps to bps
                                             stream_value_metrics.append(
-                                                f'dispatcharr_stream_transcode_bitrate_kbps{{{base_labels_str}}} {ffmpeg_output_bitrate}'
+                                                f'dispatcharr_stream_transcode_bitrate_bps{{{base_labels_str}}} {ffmpeg_output_bitrate_bps}'
                                             )
-                                        if avg_bitrate_kbps > 0:
+                                        if avg_bitrate_bps > 0:
                                             stream_value_metrics.append(
-                                                f'dispatcharr_stream_avg_bitrate_kbps{{{base_labels_str}}} {avg_bitrate_kbps}'
+                                                f'dispatcharr_stream_avg_bitrate_bps{{{base_labels_str}}} {avg_bitrate_bps}'
                                             )
                                         
                                         # Transfer metrics
@@ -815,10 +818,10 @@ class PrometheusMetricsCollector:
             metrics.append("# TYPE dispatcharr_client_connection_duration_seconds gauge")
             metrics.append("# HELP dispatcharr_client_bytes_sent Total bytes sent to client")
             metrics.append("# TYPE dispatcharr_client_bytes_sent counter")
-            metrics.append("# HELP dispatcharr_client_avg_transfer_rate_kbps Average transfer rate to client in kbps")
-            metrics.append("# TYPE dispatcharr_client_avg_transfer_rate_kbps gauge")
-            metrics.append("# HELP dispatcharr_client_current_transfer_rate_kbps Current transfer rate to client in kbps")
-            metrics.append("# TYPE dispatcharr_client_current_transfer_rate_kbps gauge")
+            metrics.append("# HELP dispatcharr_client_avg_transfer_rate_bps Average transfer rate to client in bits per second")
+            metrics.append("# TYPE dispatcharr_client_avg_transfer_rate_bps gauge")
+            metrics.append("# HELP dispatcharr_client_current_transfer_rate_bps Current transfer rate to client in bits per second")
+            metrics.append("# TYPE dispatcharr_client_current_transfer_rate_bps gauge")
             
             # Scan for all active stream channels
             cursor = 0
@@ -899,17 +902,21 @@ class PrometheusMetricsCollector:
                                 except (ValueError, TypeError):
                                     pass
                                 
-                                avg_rate_kbps = 0.0
+                                avg_rate_bps = 0.0
                                 avg_rate_str = get_client_field('avg_rate_KBps', '0')
                                 try:
-                                    avg_rate_kbps = float(avg_rate_str)
+                                    # Field contains KB/s (kilobytes per second)
+                                    # Convert to bps: KB/s * 8 * 1000 = bps
+                                    avg_rate_bps = float(avg_rate_str) * 8000
                                 except (ValueError, TypeError):
                                     pass
                                 
-                                current_rate_kbps = 0.0
+                                current_rate_bps = 0.0
                                 current_rate_str = get_client_field('current_rate_KBps', '0')
                                 try:
-                                    current_rate_kbps = float(current_rate_str)
+                                    # Field contains KB/s (kilobytes per second)
+                                    # Convert to bps: KB/s * 8 * 1000 = bps
+                                    current_rate_bps = float(current_rate_str) * 8000
                                 except (ValueError, TypeError):
                                     pass
                                 
@@ -936,11 +943,11 @@ class PrometheusMetricsCollector:
                                 if bytes_sent > 0:
                                     client_metrics.append(f'dispatcharr_client_bytes_sent{{{base_labels_str}}} {bytes_sent}')
                                 
-                                if avg_rate_kbps > 0:
-                                    client_metrics.append(f'dispatcharr_client_avg_transfer_rate_kbps{{{base_labels_str}}} {avg_rate_kbps}')
+                                if avg_rate_bps > 0:
+                                    client_metrics.append(f'dispatcharr_client_avg_transfer_rate_bps{{{base_labels_str}}} {avg_rate_bps}')
                                 
-                                if current_rate_kbps > 0:
-                                    client_metrics.append(f'dispatcharr_client_current_transfer_rate_kbps{{{base_labels_str}}} {current_rate_kbps}')
+                                if current_rate_bps > 0:
+                                    client_metrics.append(f'dispatcharr_client_current_transfer_rate_bps{{{base_labels_str}}} {current_rate_bps}')
                                 
                             except Exception as e:
                                 logger.debug(f"Error processing client {client_id}: {e}")

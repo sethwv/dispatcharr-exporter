@@ -281,46 +281,46 @@ dispatcharr_stream_active_clients{channel_uuid="12572661-bc4b-4937-8501-665c8a4c
 dispatcharr_stream_fps{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 59.94
 ```
 
-#### `dispatcharr_stream_video_bitrate_kbps`
+#### `dispatcharr_stream_video_bitrate_bps`
 **Type:** gauge  
-**Value:** Bitrate in kbps  
+**Value:** Bitrate in bits per second  
 **Labels:**
 - `channel_uuid` - Channel UUID
 - `channel_number` - Channel number
 
-**Description:** Source video bitrate in kilobits per second.
+**Description:** Source video bitrate in bits per second. Use Grafana's "bits/sec" unit for automatic formatting.
 
 **Example:**
 ```
-dispatcharr_stream_video_bitrate_kbps{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 8500
+dispatcharr_stream_video_bitrate_bps{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 8500000
 ```
 
-#### `dispatcharr_stream_transcode_bitrate_kbps`
+#### `dispatcharr_stream_transcode_bitrate_bps`
 **Type:** gauge  
-**Value:** Bitrate in kbps  
+**Value:** Bitrate in bits per second  
 **Labels:**
 - `channel_uuid` - Channel UUID
 - `channel_number` - Channel number
 
-**Description:** Transcode output bitrate in kilobits per second.
+**Description:** Transcode output bitrate in bits per second. Use Grafana's "bits/sec" unit for automatic formatting.
 
 **Example:**
 ```
-dispatcharr_stream_transcode_bitrate_kbps{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 5383.4
+dispatcharr_stream_transcode_bitrate_bps{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 5383400
 ```
 
-#### `dispatcharr_stream_avg_bitrate_kbps`
+#### `dispatcharr_stream_avg_bitrate_bps`
 **Type:** gauge  
-**Value:** Bitrate in kbps  
+**Value:** Bitrate in bits per second  
 **Labels:**
 - `channel_uuid` - Channel UUID
 - `channel_number` - Channel number
 
-**Description:** Calculated average bitrate in kilobits per second.
+**Description:** Calculated average bitrate in bits per second. Use Grafana's "bits/sec" unit for automatic formatting.
 
 **Example:**
 ```
-dispatcharr_stream_avg_bitrate_kbps{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 5200.5
+dispatcharr_stream_avg_bitrate_bps{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 5200500
 ```
 
 #### `dispatcharr_stream_transfer_bytes_total`
@@ -499,34 +499,34 @@ dispatcharr_client_connection_duration_seconds{client_id="client_1735492847123_4
 dispatcharr_client_bytes_sent_total{client_id="client_1735492847123_4567",channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 524288000
 ```
 
-### `dispatcharr_client_avg_transfer_rate_kbps`
+### `dispatcharr_client_avg_transfer_rate_bps`
 **Type:** gauge  
-**Value:** Average transfer rate in kilobits per second  
+**Value:** Average transfer rate in bits per second  
 **Labels:**
 - `client_id` - Unique client connection ID
 - `channel_uuid` - Channel UUID
 - `channel_number` - Channel number
 
-**Description:** Average data transfer rate to this client over the connection lifetime.
+**Description:** Average data transfer rate to this client over the connection lifetime. Use Grafana's "bits/sec" unit for automatic formatting.
 
 **Example:**
 ```
-dispatcharr_client_avg_transfer_rate_kbps{client_id="client_1735492847123_4567",channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 5200.5
+dispatcharr_client_avg_transfer_rate_bps{client_id="client_1735492847123_4567",channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 41604000
 ```
 
-### `dispatcharr_client_current_transfer_rate_kbps`
+### `dispatcharr_client_current_transfer_rate_bps`
 **Type:** gauge  
-**Value:** Current transfer rate in kilobits per second  
+**Value:** Current transfer rate in bits per second  
 **Labels:**
 - `client_id` - Unique client connection ID
 - `channel_uuid` - Channel UUID
 - `channel_number` - Channel number
 
-**Description:** Current/recent data transfer rate to this client.
+**Description:** Current/recent data transfer rate to this client. Use Grafana's "bits/sec" unit for automatic formatting.
 
 **Example:**
 ```
-dispatcharr_client_current_transfer_rate_kbps{client_id="client_1735492847123_4567",channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 5400.2
+dispatcharr_client_current_transfer_rate_bps{client_id="client_1735492847123_4567",channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 43201600
 ```
 
 ---
@@ -712,8 +712,11 @@ sum(dispatcharr_client_bytes_sent_total)
 # Total bytes sent per channel
 sum by (channel_uuid, channel_number) (dispatcharr_client_bytes_sent_total)
 
-# Average transfer rate across all clients
-avg(dispatcharr_client_avg_transfer_rate_kbps)
+# Average transfer rate across all clients (in bps)
+avg(dispatcharr_client_avg_transfer_rate_bps)
+
+# Average transfer rate in Mbps for display
+avg(dispatcharr_client_avg_transfer_rate_bps) / 1000000
 
 # Client connection duration with IP and user agent
 dispatcharr_client_connection_duration_seconds
