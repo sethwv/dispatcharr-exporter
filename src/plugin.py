@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 # Plugin configuration - update all settings here
 PLUGIN_CONFIG = {
-    "version": "-dev-33b72623-20251229185428",
+    "version": "-dev-b3943d74-20251229190738",
     "name": "Dispatcharr Exporter",
     "author": "SethWV",
     "description": "Expose Dispatcharr metrics in Prometheus exporter-compatible format for monitoring. Configuration changes require a restart of the metrics server. https://github.com/sethwv/dispatcharr-exporter/releases/",
@@ -271,9 +271,11 @@ class PrometheusMetricsCollector:
     def _collect_profile_metrics(self) -> list:
         """Collect M3U profile connection statistics"""
         from apps.m3u.models import M3UAccountProfile
+        from datetime import datetime, timezone
         
         metrics = []
         profile_data = []
+        expiry_data = []
         
         try:
             if self.redis_client:
@@ -297,6 +299,29 @@ class PrometheusMetricsCollector:
                             usage = current_connections / max_connections
                             profile_data.append(f'dispatcharr_profile_connection_usage{{profile_id="{profile.id}",profile_name="{profile_name}",account_name="{account_name}"}} {usage:.4f}')
                         
+                        # For XC profiles, add days to expiry metric
+                        if profile.m3u_account.account_type == 'XC':
+                            days_remaining = -1  # Default: no expiry set
+                            
+                            # exp_date is stored in custom_properties['user_info']['exp_date'] as Unix timestamp
+                            if profile.custom_properties:
+                                user_info = profile.custom_properties.get('user_info', {})
+                                exp_date = user_info.get('exp_date')
+                                
+                                if exp_date:
+                                    try:
+                                        # Convert Unix timestamp to datetime
+                                        expiry = datetime.fromtimestamp(float(exp_date), tz=timezone.utc)
+                                        now = datetime.now(timezone.utc)
+                                        
+                                        days_remaining = (expiry - now).days
+                                        # Show 0 if expired (negative days)
+                                        days_remaining = max(0, days_remaining)
+                                    except (ValueError, TypeError) as e:
+                                        logger.debug(f"Error calculating expiry for profile {profile.id}: {e}")
+                            
+                            expiry_data.append(f'dispatcharr_profile_days_to_expiry{{profile_id="{profile.id}",profile_name="{profile_name}",account_name="{account_name}"}} {days_remaining}')
+                        
                     except Exception as e:
                         logger.debug(f"Error getting connections for profile {profile.id}: {e}")
         except Exception as e:
@@ -311,6 +336,12 @@ class PrometheusMetricsCollector:
             metrics.append("# HELP dispatcharr_profile_connection_usage Connection usage ratio per M3U profile")
             metrics.append("# TYPE dispatcharr_profile_connection_usage gauge")
             metrics.extend(profile_data)
+        
+        # Add expiry metrics if we have any
+        if expiry_data:
+            metrics.append("# HELP dispatcharr_profile_days_to_expiry Days remaining until XC profile expiry (0 if expired, -1 if no expiry set)")
+            metrics.append("# TYPE dispatcharr_profile_days_to_expiry gauge")
+            metrics.extend(expiry_data)
         
         metrics.append("")
         return metrics
