@@ -27,6 +27,7 @@ PLUGIN_CONFIG = {
     "name": "Dispatcharr Exporter",
     "author": "SethWV",
     "description": "Expose Dispatcharr metrics in Prometheus exporter-compatible format for monitoring. Configuration changes require a restart of the metrics server. https://github.com/sethwv/dispatcharr-exporter/releases/",
+    "min_dispatcharr_version": "v0.14.0",
     "repo_url": "https://github.com/sethwv/dispatcharr-exporter",
     "default_port": 9192,
     "default_host": "0.0.0.0",
@@ -1017,6 +1018,37 @@ class MetricsServer:
         self.server = None
         self.running = False
         self.settings = {}
+    
+    @staticmethod
+    def _compare_versions(current, minimum):
+        """Compare semantic versions. Returns True if current >= minimum."""
+        try:
+            # Strip 'v' prefix if present
+            current = current.lstrip('v')
+            minimum = minimum.lstrip('v')
+            
+            # Split versions into parts
+            current_parts = [int(x) for x in current.split('.')]
+            minimum_parts = [int(x) for x in minimum.split('.')]
+            
+            # Pad shorter version with zeros
+            while len(current_parts) < len(minimum_parts):
+                current_parts.append(0)
+            while len(minimum_parts) < len(current_parts):
+                minimum_parts.append(0)
+            
+            # Compare
+            for c, m in zip(current_parts, minimum_parts):
+                if c > m:
+                    return True
+                elif c < m:
+                    return False
+            
+            # Equal
+            return True
+        except (ValueError, AttributeError):
+            # If we can't parse versions, assume it's okay
+            return True
         
     def wsgi_app(self, environ, start_response):
         """WSGI application for serving metrics"""
@@ -1160,6 +1192,43 @@ class MetricsServer:
         if _metrics_server and _metrics_server.is_running():
             logger.warning("Another metrics server instance is already running")
             return False
+        
+        # Check Dispatcharr version meets minimum requirement
+        min_version = PLUGIN_CONFIG.get("min_dispatcharr_version", "1.0.0")
+        try:
+            # Get Dispatcharr version (same logic as in collect_metrics)
+            dispatcharr_version = "unknown"
+            try:
+                import version
+                if '/app' not in sys.path:
+                    sys.path.insert(0, '/app')
+                dispatcharr_version = getattr(version, '__version__', 'unknown')
+            except Exception:
+                try:
+                    with open('/app/version.py', 'r') as f:
+                        content = f.read()
+                        version_match = re.search(r"__version__\s*=\s*['\"]([^'\"]+)['\"]", content)
+                        if version_match:
+                            dispatcharr_version = version_match.group(1)
+                except Exception:
+                    pass
+            
+            # Check version requirement (skip dev builds with timestamp suffix)
+            if dispatcharr_version != "unknown":
+                version_parts = dispatcharr_version.lstrip('v').split('-')
+                is_dev_build = len(version_parts) > 1 and version_parts[1].isdigit()
+                
+                if is_dev_build:
+                    logger.info(f"Dev build detected ({dispatcharr_version}), skipping version check")
+                elif not self._compare_versions(dispatcharr_version, min_version):
+                    logger.error(f"Dispatcharr {dispatcharr_version} does not meet minimum requirement {min_version}")
+                    return False
+                else:
+                    logger.info(f"Dispatcharr {dispatcharr_version} meets minimum requirement {min_version}")
+            else:
+                logger.warning("Could not determine Dispatcharr version, skipping check")
+        except Exception as e:
+            logger.warning(f"Could not verify Dispatcharr version: {e}. Proceeding anyway.")
         
         # Check if port is already in use
         import socket
