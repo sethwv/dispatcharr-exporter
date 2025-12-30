@@ -279,13 +279,55 @@ class PrometheusMetricsCollector:
         
         try:
             if self.redis_client:
+                # Calculate actual profile connections by scanning active streams
+                # This is more accurate than the Redis counters which don't update during fallback
+                actual_profile_connections = {}
+                
+                try:
+                    pattern = "channel_stream:*"
+                    for key in self.redis_client.scan_iter(match=pattern):
+                        try:
+                            key_str = key.decode('utf-8') if isinstance(key, bytes) else key
+                            channel_id = key_str.split(':', 1)[1]
+                            
+                            # Get channel to get its UUID
+                            from apps.channels.models import Channel
+                            try:
+                                channel = Channel.objects.get(id=int(channel_id))
+                                channel_uuid = str(channel.uuid)
+                                
+                                # Get the actual active M3U profile ID from channel metadata
+                                metadata_key = f"ts_proxy:channel:{channel_uuid}:metadata"
+                                metadata = self.redis_client.hgetall(metadata_key) or {}
+                                
+                                def get_metadata(field, default=None):
+                                    val = metadata.get(field.encode('utf-8') if isinstance(field, str) else field, None)
+                                    if val is None:
+                                        return default
+                                    return val.decode('utf-8') if isinstance(val, bytes) else default
+                                
+                                m3u_profile_id = get_metadata(ChannelMetadataField.M3U_PROFILE, None)
+                                if m3u_profile_id and m3u_profile_id != '0':
+                                    try:
+                                        profile_id = int(m3u_profile_id)
+                                        actual_profile_connections[profile_id] = actual_profile_connections.get(profile_id, 0) + 1
+                                    except (ValueError, TypeError):
+                                        pass
+                            except Channel.DoesNotExist:
+                                pass
+                        except Exception as e:
+                            logger.debug(f"Error processing stream key for profile counting: {e}")
+                except Exception as e:
+                    logger.debug(f"Error calculating actual profile connections: {e}")
+                
                 for profile in M3UAccountProfile.objects.all():
                     try:
                         # Skip 'custom' account
                         if profile.m3u_account.name.lower() == 'custom':
                             continue
                         
-                        current_connections = int(self.redis_client.get(f"profile_connections:{profile.id}") or 0)
+                        # Use calculated connections instead of Redis counter (which doesn't update during fallback)
+                        current_connections = actual_profile_connections.get(profile.id, 0)
                         max_connections = profile.max_streams
                         
                         profile_name = profile.name.replace('"', '\\"')
