@@ -436,6 +436,8 @@ class PrometheusMetricsCollector:
         metrics.append("# TYPE dispatcharr_stream_transcode_bitrate_bps gauge")
         metrics.append("# HELP dispatcharr_stream_avg_bitrate_bps Average bitrate in bits per second")
         metrics.append("# TYPE dispatcharr_stream_avg_bitrate_bps gauge")
+        metrics.append("# HELP dispatcharr_stream_current_bitrate_bps Current bitrate in bits per second (sum of all client rates)")
+        metrics.append("# TYPE dispatcharr_stream_current_bitrate_bps gauge")
         metrics.append("# HELP dispatcharr_stream_total_transfer_mb Total data transferred in megabytes")
         metrics.append("# TYPE dispatcharr_stream_total_transfer_mb counter")
         metrics.append("# HELP dispatcharr_stream_fps Stream frames per second")
@@ -543,6 +545,28 @@ class PrometheusMetricsCollector:
                                     client_set_key = f"ts_proxy:channel:{channel_uuid}:clients"
                                     active_clients = self.redis_client.scard(client_set_key) or 0
                                     
+                                    # Calculate current bitrate by summing all client current rates
+                                    current_bitrate_bps = 0.0
+                                    try:
+                                        client_ids = self.redis_client.smembers(client_set_key)
+                                        for client_id_bytes in client_ids:
+                                            try:
+                                                client_id = client_id_bytes.decode('utf-8') if isinstance(client_id_bytes, bytes) else client_id_bytes
+                                                client_key = f"ts_proxy:channel:{channel_uuid}:clients:{client_id}"
+                                                client_data = self.redis_client.hgetall(client_key)
+                                                
+                                                if client_data and b'current_rate_KBps' in client_data:
+                                                    current_rate_kb = float(client_data[b'current_rate_KBps'].decode('utf-8'))
+                                                    # Auto-detect bytes/s vs KB/s (same logic as client metrics)
+                                                    if current_rate_kb > 50000:
+                                                        current_bitrate_bps += current_rate_kb * 8  # bytes/s to bps
+                                                    else:
+                                                        current_bitrate_bps += current_rate_kb * 8000  # KB/s to bps
+                                            except Exception:
+                                                pass
+                                    except Exception:
+                                        pass
+                                    
                                     # Get state
                                     state = get_metadata(ChannelMetadataField.STATE, 'unknown')
                                     
@@ -640,6 +664,7 @@ class PrometheusMetricsCollector:
                                             f'video_bitrate_bps="{float(video_bitrate) * 1000 if video_bitrate and video_bitrate != "0" else 0}"',
                                             f'transcode_bitrate_bps="{float(ffmpeg_output_bitrate) * 1000 if ffmpeg_output_bitrate and ffmpeg_output_bitrate != "0" else 0}"',
                                             f'avg_bitrate_bps="{avg_bitrate_bps}"',
+                                            f'current_bitrate_bps="{current_bitrate_bps}"',
                                             f'total_transfer_mb="{total_mb}"',
                                             f'uptime_seconds="{uptime_seconds}"',
                                             f'active_clients="{active_clients}"'
@@ -677,6 +702,10 @@ class PrometheusMetricsCollector:
                                         if avg_bitrate_bps > 0:
                                             stream_value_metrics.append(
                                                 f'dispatcharr_stream_avg_bitrate_bps{{{base_labels_str}}} {avg_bitrate_bps}'
+                                            )
+                                        if current_bitrate_bps > 0:
+                                            stream_value_metrics.append(
+                                                f'dispatcharr_stream_current_bitrate_bps{{{base_labels_str}}} {current_bitrate_bps}'
                                             )
                                         
                                         # Transfer metrics
