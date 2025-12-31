@@ -316,25 +316,39 @@ dispatcharr_stream_transcode_bitrate_bps{channel_uuid="12572661-bc4b-4937-8501-6
 - `channel_uuid` - Channel UUID
 - `channel_number` - Channel number
 
-**Description:** Calculated average bitrate in bits per second. Use Grafana's "bits/sec" unit for automatic formatting.
+**Description:** Calculated average bitrate in bits per second (total bytes * 8 / uptime). Use Grafana's "bits/sec" unit for automatic formatting.
 
 **Example:**
 ```
 dispatcharr_stream_avg_bitrate_bps{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 5200500
 ```
 
-#### `dispatcharr_stream_transfer_bytes_total`
-**Type:** counter  
-**Value:** Total bytes transferred  
+#### `dispatcharr_stream_current_bitrate_bps`
+**Type:** gauge  
+**Value:** Bitrate in bits per second  
 **Labels:**
 - `channel_uuid` - Channel UUID
 - `channel_number` - Channel number
 
-**Description:** Total data transferred by this stream in bytes.
+**Description:** Current bitrate in bits per second (sum of all connected client transfer rates). Matches the "current bitrate" shown in Dispatcharr UI. Use Grafana's "bits/sec" unit for automatic formatting.
 
 **Example:**
 ```
-dispatcharr_stream_transfer_bytes_total{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 4294967296
+dispatcharr_stream_current_bitrate_bps{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 4820000
+```
+
+#### `dispatcharr_stream_total_transfer_mb`
+**Type:** counter  
+**Value:** Total megabytes transferred  
+**Labels:**
+- `channel_uuid` - Channel UUID
+- `channel_number` - Channel number
+
+**Description:** Total data transferred by this stream in megabytes.
+
+**Example:**
+```
+dispatcharr_stream_total_transfer_mb{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 4096.25
 ```
 
 ### Context Metrics (For Enrichment)
@@ -484,7 +498,7 @@ dispatcharr_client_info{client_id="client_1735492847123_4567",channel_uuid="1257
 dispatcharr_client_connection_duration_seconds{client_id="client_1735492847123_4567",channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 3847
 ```
 
-### `dispatcharr_client_bytes_sent_total`
+### `dispatcharr_client_bytes_sent`
 **Type:** counter  
 **Value:** Total bytes sent to client  
 **Labels:**
@@ -496,7 +510,7 @@ dispatcharr_client_connection_duration_seconds{client_id="client_1735492847123_4
 
 **Example:**
 ```
-dispatcharr_client_bytes_sent_total{client_id="client_1735492847123_4567",channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 524288000
+dispatcharr_client_bytes_sent{client_id="client_1735492847123_4567",channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 524288000
 ```
 
 ### `dispatcharr_client_avg_transfer_rate_bps`
