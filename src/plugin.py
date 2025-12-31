@@ -906,18 +906,32 @@ class PrometheusMetricsCollector:
                                 avg_rate_bps = 0.0
                                 avg_rate_str = get_client_field('avg_rate_KBps', '0')
                                 try:
-                                    # Field contains KB/s (kilobytes per second)
-                                    # Convert to bps: KB/s * 8 * 1000 = bps
-                                    avg_rate_bps = float(avg_rate_str) * 8000
+                                    # Field name suggests KB/s but currently contains bytes/s
+                                    # Auto-detect: if value > 50000, assume bytes/s; otherwise KB/s
+                                    # Typical streaming: 1-50 Mbps = 125,000-6,250,000 bytes/s or 125-6,250 KB/s
+                                    avg_rate_value = float(avg_rate_str)
+                                    if avg_rate_value > 50000:
+                                        # Likely bytes/s: convert to bps
+                                        avg_rate_bps = avg_rate_value * 8
+                                    else:
+                                        # Likely KB/s: convert to bps
+                                        avg_rate_bps = avg_rate_value * 8000
                                 except (ValueError, TypeError):
                                     pass
                                 
                                 current_rate_bps = 0.0
                                 current_rate_str = get_client_field('current_rate_KBps', '0')
                                 try:
-                                    # Field contains KB/s (kilobytes per second)
-                                    # Convert to bps: KB/s * 8 * 1000 = bps
-                                    current_rate_bps = float(current_rate_str) * 8000
+                                    # Field name suggests KB/s but currently contains bytes/s
+                                    # Auto-detect: if value > 50000, assume bytes/s; otherwise KB/s
+                                    # Typical streaming: 1-50 Mbps = 125,000-6,250,000 bytes/s or 125-6,250 KB/s
+                                    current_rate_value = float(current_rate_str)
+                                    if current_rate_value > 50000:
+                                        # Likely bytes/s: convert to bps
+                                        current_rate_bps = current_rate_value * 8
+                                    else:
+                                        # Likely KB/s: convert to bps
+                                        current_rate_bps = current_rate_value * 8000
                                 except (ValueError, TypeError):
                                     pass
                                 
