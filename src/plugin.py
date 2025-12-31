@@ -1513,10 +1513,9 @@ class Plugin:
     ]
 
     def _cleanup_root_pycache(self):
-        """Attempt to clean up root-owned __pycache__ directories in this plugin's directory"""
+        """Detect root-owned __pycache__ directories in this plugin's directory"""
         try:
             import stat
-            import shutil
             
             # Check if we're running in a container as non-root user
             if os.getuid() != 0:
@@ -1526,50 +1525,31 @@ class Plugin:
                 if not os.path.exists(plugin_dir):
                     return
                 
-                # Get the desired ownership from the plugin directory itself
-                try:
-                    dir_stat = os.stat(plugin_dir)
-                    target_uid = dir_stat.st_uid
-                    target_gid = dir_stat.st_gid
-                except (OSError, PermissionError):
-                    return
-                
-                # Find and fix __pycache__ directories in our plugin dir only
-                fixed_dirs = []
-                failed_dirs = []
+                # Find __pycache__ directories owned by root
+                root_owned = []
                 
                 try:
                     for root, dirs, files in os.walk(plugin_dir):
                         if '__pycache__' in dirs:
                             pycache_path = os.path.join(root, '__pycache__')
                             try:
-                                # Check if owned by root
                                 stat_info = os.stat(pycache_path)
-                                if stat_info.st_uid == 0:  # Owned by root
-                                    # Try to remove and let Python recreate with correct ownership
-                                    try:
-                                        shutil.rmtree(pycache_path)
-                                        fixed_dirs.append(pycache_path)
-                                        logger.debug(f"Removed root-owned __pycache__: {pycache_path}")
-                                    except (OSError, PermissionError) as e:
-                                        # Can't remove - log it
-                                        failed_dirs.append(pycache_path)
-                                        logger.debug(f"Could not remove {pycache_path}: {e}")
+                                if stat_info.st_uid == 0:
+                                    root_owned.append(pycache_path)
                             except (OSError, PermissionError):
                                 pass
                 except (OSError, PermissionError):
                     pass
                 
-                if fixed_dirs:
-                    logger.info(f"Cleaned up {len(fixed_dirs)} root-owned __pycache__ directories in plugin")
-                
-                if failed_dirs:
+                if root_owned:
                     logger.warning(
-                        f"Found {len(failed_dirs)} root-owned __pycache__ directories that could not be cleaned up. "
-                        "This is a known Dispatcharr startup issue. "
-                        "To prevent this, add PYTHONDONTWRITEBYTECODE=1 to your docker environment. "
-                        "Plugin updates may fail until Dispatcharr is restarted or these are manually cleaned."
+                        f"Detected {len(root_owned)} root-owned __pycache__ directories in plugin. "
+                        f"This is caused by Dispatcharr running 'manage.py migrate/collectstatic' as root during startup. "
+                        f"Plugin updates may fail. SOLUTION: Add 'PYTHONDONTWRITEBYTECODE=1' to your docker environment "
+                        f"or manually run: docker exec -u root <container> find {plugin_dir} -name __pycache__ -exec rm -rf {{}} +"
                     )
+                    for path in root_owned:
+                        logger.debug(f"Root-owned: {path}")
                         
         except Exception as e:
             logger.debug(f"Could not check for root-owned __pycache__: {e}")
