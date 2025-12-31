@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 # Plugin configuration - update all settings here
 PLUGIN_CONFIG = {
-    "version": "-dev-a1b93a97-20251230111453",
+    "version": "-dev-d50bc712-20251231114522",
     "name": "Dispatcharr Exporter",
     "author": "SethWV",
     "description": "Expose Dispatcharr metrics in Prometheus exporter-compatible format for monitoring. Configuration changes require a restart of the metrics server. https://github.com/sethwv/dispatcharr-exporter/releases/",
@@ -1512,6 +1512,68 @@ class Plugin:
         }
     ]
 
+    def _cleanup_root_pycache(self):
+        """Attempt to clean up root-owned __pycache__ directories in this plugin's directory"""
+        try:
+            import stat
+            import shutil
+            
+            # Check if we're running in a container as non-root user
+            if os.getuid() != 0:
+                # Find this plugin's directory
+                plugin_dir = os.path.dirname(os.path.abspath(__file__))
+                
+                if not os.path.exists(plugin_dir):
+                    return
+                
+                # Get the desired ownership from the plugin directory itself
+                try:
+                    dir_stat = os.stat(plugin_dir)
+                    target_uid = dir_stat.st_uid
+                    target_gid = dir_stat.st_gid
+                except (OSError, PermissionError):
+                    return
+                
+                # Find and fix __pycache__ directories in our plugin dir only
+                fixed_dirs = []
+                failed_dirs = []
+                
+                try:
+                    for root, dirs, files in os.walk(plugin_dir):
+                        if '__pycache__' in dirs:
+                            pycache_path = os.path.join(root, '__pycache__')
+                            try:
+                                # Check if owned by root
+                                stat_info = os.stat(pycache_path)
+                                if stat_info.st_uid == 0:  # Owned by root
+                                    # Try to remove and let Python recreate with correct ownership
+                                    try:
+                                        shutil.rmtree(pycache_path)
+                                        fixed_dirs.append(pycache_path)
+                                        logger.debug(f"Removed root-owned __pycache__: {pycache_path}")
+                                    except (OSError, PermissionError) as e:
+                                        # Can't remove - log it
+                                        failed_dirs.append(pycache_path)
+                                        logger.debug(f"Could not remove {pycache_path}: {e}")
+                            except (OSError, PermissionError):
+                                pass
+                except (OSError, PermissionError):
+                    pass
+                
+                if fixed_dirs:
+                    logger.info(f"Cleaned up {len(fixed_dirs)} root-owned __pycache__ directories in plugin")
+                
+                if failed_dirs:
+                    logger.warning(
+                        f"Found {len(failed_dirs)} root-owned __pycache__ directories that could not be cleaned up. "
+                        "This is a known Dispatcharr startup issue. "
+                        "To prevent this, add PYTHONDONTWRITEBYTECODE=1 to your docker environment. "
+                        "Plugin updates may fail until Dispatcharr is restarted or these are manually cleaned."
+                    )
+                        
+        except Exception as e:
+            logger.debug(f"Could not check for root-owned __pycache__: {e}")
+    
     def _check_github_for_updates(self):
         """Helper method to check GitHub for latest release version"""
         import requests
@@ -1546,6 +1608,10 @@ class Plugin:
     
     def __init__(self):
         self.collector = PrometheusMetricsCollector()
+        
+        # Mitigation for root-owned __pycache__ directories created during Dispatcharr startup
+        # This is a workaround for a Dispatcharr issue where migrate/collectstatic run as root
+        self._cleanup_root_pycache()
         
         # Check for updates in background (with rate limiting via Redis TTL)
         def check_for_updates():
