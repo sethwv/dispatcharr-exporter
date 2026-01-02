@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 # Plugin configuration - update all settings here
 PLUGIN_CONFIG = {
-    "version": "-dev-5629c555-20260102134229",
+    "version": "-dev-aaca3020-20260102145304",
     "name": "Dispatcharr Exporter",
     "author": "SethWV",
     "description": "Expose Dispatcharr metrics in Prometheus exporter-compatible format for monitoring. Configuration changes require a restart of the metrics server. https://github.com/sethwv/dispatcharr-exporter/releases/",
@@ -789,23 +789,25 @@ class PrometheusMetricsCollector:
                                                         f'{prefix}_end_time="{end_time}"'
                                                     ]
                                                 
-                                                # Build EPG program labels for all three programs
-                                                epg_labels = base_labels.copy()
-                                                epg_labels.extend(format_program_data(previous_program, 'previous'))
-                                                epg_labels.extend(format_program_data(current_program, 'current'))
-                                                epg_labels.extend(format_program_data(next_program, 'next'))
-                                                
-                                                # Calculate progress (how far into the current program we are, 0-1)
-                                                progress = 0.0
-                                                if current_program:
-                                                    total_duration = (current_program.end_time - current_program.start_time).total_seconds()
-                                                    elapsed = (now - current_program.start_time).total_seconds()
-                                                    progress = min(1.0, max(0.0, elapsed / total_duration)) if total_duration > 0 else 0.0
-                                                
-                                                # Add program metric with progress as the value (0.0 if no current program)
-                                                stream_value_metrics.append(
-                                                    f'dispatcharr_stream_programming{{{",".join(epg_labels)}}} {progress:.4f}'
-                                                )
+                                                # Only add the metric if there's actual program data
+                                                if previous_program or current_program or next_program:
+                                                    # Build EPG program labels for all three programs
+                                                    epg_labels = base_labels.copy()
+                                                    epg_labels.extend(format_program_data(previous_program, 'previous'))
+                                                    epg_labels.extend(format_program_data(current_program, 'current'))
+                                                    epg_labels.extend(format_program_data(next_program, 'next'))
+                                                    
+                                                    # Calculate progress (how far into the current program we are, 0-1)
+                                                    progress = 0.0
+                                                    if current_program:
+                                                        total_duration = (current_program.end_time - current_program.start_time).total_seconds()
+                                                        elapsed = (now - current_program.start_time).total_seconds()
+                                                        progress = min(1.0, max(0.0, elapsed / total_duration)) if total_duration > 0 else 0.0
+                                                    
+                                                    # Add program metric with progress as the value (0.0 if no current program)
+                                                    stream_value_metrics.append(
+                                                        f'dispatcharr_stream_programming{{{",".join(epg_labels)}}} {progress:.4f}'
+                                                    )
                                             except Exception as e:
                                                 logger.debug(f"Error fetching EPG program for channel {channel_id}: {e}")
                                         
