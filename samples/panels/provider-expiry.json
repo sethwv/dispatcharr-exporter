@@ -1,0 +1,81 @@
+{
+  "id": 102,
+  "type": "bargauge",
+  "title": "Expiry",
+  "gridPos": {
+    "x": 16,
+    "y": 15,
+    "h": 5,
+    "w": 8
+  },
+  "fieldConfig": {
+    "defaults": {
+      "mappings": [],
+      "thresholds": {
+        "mode": "absolute",
+        "steps": [
+          {
+            "color": "green",
+            "value": null
+          }
+        ]
+      },
+      "color": {
+        "mode": "continuous-RdYlGr"
+      },
+      "decimals": 0,
+      "fieldMinMax": false,
+      "min": -1,
+      "unit": "d"
+    },
+    "overrides": [
+      {
+        "matcher": {
+          "id": "byName",
+          "options": ""
+        },
+        "properties": []
+      }
+    ]
+  },
+  "pluginVersion": "",
+  "targets": [
+    {
+      "editorMode": "code",
+      "exemplar": false,
+      "expr": "dispatcharr_profile_days_to_expiry != -1",
+      "instant": true,
+      "legendFormat": "{{account_name}} {{profile_name}}",
+      "range": false,
+      "refId": "A"
+    }
+  ],
+  "datasource": {
+    "type": "prometheus",
+    "uid": "Vc-zI2snz"
+  },
+  "options": {
+    "reduceOptions": {
+      "values": false,
+      "calcs": [
+        "lastNotNull"
+      ],
+      "fields": ""
+    },
+    "orientation": "horizontal",
+    "legend": {
+      "showLegend": false,
+      "displayMode": "list",
+      "placement": "bottom",
+      "calcs": []
+    },
+    "displayMode": "basic",
+    "valueMode": "color",
+    "namePlacement": "auto",
+    "showUnfilled": true,
+    "sizing": "auto",
+    "minVizWidth": 8,
+    "minVizHeight": 16,
+    "maxVizHeight": 300
+  }
+}

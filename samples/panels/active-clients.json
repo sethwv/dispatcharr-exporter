@@ -1,0 +1,344 @@
+{
+  "id": 104,
+  "type": "table",
+  "title": "Clients",
+  "gridPos": {
+    "x": 0,
+    "y": 15,
+    "h": 5,
+    "w": 8
+  },
+  "fieldConfig": {
+    "defaults": {
+      "custom": {
+        "align": "center",
+        "cellOptions": {
+          "type": "auto",
+          "wrapText": false
+        },
+        "inspect": false,
+        "filterable": false
+      },
+      "mappings": [],
+      "thresholds": {
+        "mode": "absolute",
+        "steps": [
+          {
+            "color": "green",
+            "value": null
+          },
+          {
+            "color": "red",
+            "value": 80
+          }
+        ]
+      }
+    },
+    "overrides": [
+      {
+        "matcher": {
+          "id": "byName",
+          "options": "Channel"
+        },
+        "properties": [
+          {
+            "id": "decimals",
+            "value": 0
+          },
+          {
+            "id": "custom.width",
+            "value": 100
+          }
+        ]
+      },
+      {
+        "matcher": {
+          "id": "byName",
+          "options": "Duration"
+        },
+        "properties": [
+          {
+            "id": "unit",
+            "value": "s"
+          },
+          {
+            "id": "decimals",
+            "value": 0
+          },
+          {
+            "id": "custom.filterable",
+            "value": false
+          },
+          {
+            "id": "custom.width",
+            "value": 100
+          }
+        ]
+      },
+      {
+        "matcher": {
+          "id": "byName",
+          "options": "state"
+        },
+        "properties": [
+          {
+            "id": "custom.cellOptions",
+            "value": {
+              "applyToRow": true,
+              "type": "color-background"
+            }
+          },
+          {
+            "id": "custom.hidden",
+            "value": true
+          },
+          {
+            "id": "mappings",
+            "value": [
+              {
+                "options": {
+                  "active": {
+                    "color": "#55a64b52",
+                    "index": 0
+                  },
+                  "buffering": {
+                    "color": "#ff780a52",
+                    "index": 1
+                  },
+                  "error": {
+                    "color": "#e02f4452",
+                    "index": 3
+                  },
+                  "waiting_for_clients": {
+                    "color": "#1f61c452",
+                    "index": 2
+                  }
+                },
+                "type": "value"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "matcher": {
+          "id": "byValue",
+          "options": {
+            "op": "neq",
+            "reducer": "allValues",
+            "value": 99999999
+          }
+        },
+        "properties": [
+          {
+            "id": "custom.filterable"
+          },
+          {
+            "id": "filterable"
+          }
+        ]
+      },
+      {
+        "matcher": {
+          "id": "byName",
+          "options": "Client"
+        },
+        "properties": [
+          {
+            "id": "custom.width",
+            "value": 120
+          }
+        ]
+      },
+      {
+        "matcher": {
+          "id": "byName",
+          "options": "Sent"
+        },
+        "properties": [
+          {
+            "id": "unit",
+            "value": "decbytes"
+          },
+          {
+            "id": "custom.width",
+            "value": 100
+          }
+        ]
+      },
+      {
+        "matcher": {
+          "id": "byName",
+          "options": "Rate"
+        },
+        "properties": [
+          {
+            "id": "custom.width",
+            "value": 100
+          },
+          {
+            "id": "unit",
+            "value": "bps"
+          }
+        ]
+      }
+    ]
+  },
+  "transformations": [
+    {
+      "id": "labelsToFields",
+      "options": {
+        "mode": "columns"
+      }
+    },
+    {
+      "id": "merge",
+      "options": {}
+    },
+    {
+      "id": "organize",
+      "options": {
+        "excludeByName": {
+          "Time": true,
+          "Value #A": false,
+          "Value #C": false,
+          "__name__": true,
+          "channel_group": true,
+          "channel_name": true,
+          "channel_uuid": true,
+          "client_id": true,
+          "group": true,
+          "instance": true,
+          "job": true,
+          "process": true,
+          "profile_id": true,
+          "profile_name": false,
+          "provider": false,
+          "provider_type": true,
+          "resolution": true,
+          "stream_id": true,
+          "stream_name": true,
+          "stream_profile": true,
+          "video_codec": true
+        },
+        "includeByName": {},
+        "indexByName": {
+          "Time": 5,
+          "Value": 2,
+          "channel_name": 4,
+          "channel_number": 3,
+          "channel_uuid": 6,
+          "client_id": 0,
+          "group": 7,
+          "instance": 8,
+          "ip_address": 1,
+          "job": 9,
+          "process": 10
+        },
+        "renameByName": {
+          "Value": "Duration",
+          "Value #A": "Duration",
+          "Value #B": "Sent",
+          "Value #C": "Rate",
+          "channel_name": "Name",
+          "channel_number": "Channel",
+          "ip_address": "Client",
+          "logo_url": "Logo",
+          "profile_name": "Profile",
+          "provider": "Provider"
+        }
+      }
+    },
+    {
+      "id": "convertFieldType",
+      "options": {
+        "conversions": [
+          {
+            "destinationType": "number",
+            "targetField": "Channel"
+          }
+        ],
+        "fields": {}
+      }
+    },
+    {
+      "id": "sortBy",
+      "options": {
+        "fields": {},
+        "sort": [
+          {
+            "desc": true,
+            "field": "Duration"
+          }
+        ]
+      }
+    }
+  ],
+  "pluginVersion": "",
+  "targets": [
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Vc-zI2snz"
+      },
+      "editorMode": "code",
+      "exemplar": false,
+      "expr": "dispatcharr_client_connection_duration_seconds \n* on(client_id, channel_uuid) group_left(ip_address)\n  dispatcharr_client_info\n* on(channel_uuid) group_left(channel_name)\n  dispatcharr_stream_metadata",
+      "format": "table",
+      "hide": false,
+      "instant": true,
+      "legendFormat": "__auto",
+      "range": false,
+      "refId": "A"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Vc-zI2snz"
+      },
+      "editorMode": "code",
+      "exemplar": false,
+      "expr": "dispatcharr_client_bytes_sent\n* on(client_id, channel_uuid) group_left(ip_address)\n  dispatcharr_client_info\n* on(channel_uuid) group_left(channel_name)\n  dispatcharr_stream_metadata",
+      "format": "table",
+      "hide": false,
+      "instant": true,
+      "legendFormat": "__auto",
+      "range": false,
+      "refId": "B"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Vc-zI2snz"
+      },
+      "editorMode": "code",
+      "exemplar": false,
+      "expr": "dispatcharr_client_current_transfer_rate_bps\n* on(client_id, channel_uuid) group_left(ip_address)\n  dispatcharr_client_info\n* on(channel_uuid) group_left(channel_name)\n  dispatcharr_stream_metadata",
+      "format": "table",
+      "hide": false,
+      "instant": true,
+      "legendFormat": "__auto",
+      "range": false,
+      "refId": "C"
+    }
+  ],
+  "datasource": {
+    "type": "prometheus",
+    "uid": "Vc-zI2snz"
+  },
+  "options": {
+    "showHeader": false,
+    "cellHeight": "sm",
+    "footer": {
+      "show": false,
+      "reducer": [
+        "count"
+      ],
+      "countRows": false,
+      "fields": "",
+      "enablePagination": false
+    },
+    "frameIndex": 1,
+    "sortBy": []
+  }
+}

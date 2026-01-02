@@ -138,10 +138,13 @@ For a complete list of available metrics, query examples, and best practices, se
 ### Plugin Settings
 
 - **Auto-start Server** (boolean, default: `false`): Automatically start metrics server when Dispatcharr starts
+- **Suppress Access Logs** (boolean, default: `true`): Suppress HTTP access logs for /metrics requests
+- **Disable Update Notifications** (boolean, default: `false`): Disable automatic update notifications (updates can still be checked manually via the 'Check for Updates' action)
 - **Metrics Server Port** (number, default: `9192`): Port for the HTTP metrics server
 - **Metrics Server Host** (string, default: `0.0.0.0`): Host address to bind
   - `0.0.0.0` - Listen on all network interfaces (accessible remotely)
   - `127.0.0.1` - Listen only on localhost (local access only)
+- **Dispatcharr Base URL** (string, optional): URL for Dispatcharr API (e.g., http://localhost:5656 or https://dispatcharr.example.com). If set, logo URLs will be absolute instead of relative paths. Leave empty to use relative paths.
 
 ### Metric Visibility Controls
 
@@ -150,8 +153,8 @@ For a complete list of available metrics, query examples, and best practices, se
 - **Include VOD Metrics** (boolean, default: `false`): Include VOD session and stream metrics
 - **Include Client Connection Statistics** (boolean, default: `false`): Include individual client connection information
   - Warning: May expose sensitive information in metrics
-- **Include Source URLs** (boolean, default: `false`): Include provider/source URLs in stream metrics
-  - Warning: May expose sensitive information in metrics
+- **Include Provider/Source Information** (boolean, default: `false`): Include server URLs & XC usernames in M3U account and EPG source metrics
+  - Warning: Ensure this is DISABLED if sharing output in Discord for troubleshooting
 - **Include Legacy Metric Formats** (boolean, default: `false`): Include backward-compatible metrics from v1.1.0 and earlier
   - Only enable if you have existing dashboards that need migration time
   - NOT recommended - use the new layered metrics instead for proper time series
@@ -161,7 +164,45 @@ For a complete list of available metrics, query examples, and best practices, se
 - **Start Metrics Server**: Starts the HTTP server on the configured port
 - **Stop Metrics Server**: Stops the HTTP server
 - **Restart Metrics Server**: Restarts the server (useful after changing settings)
-- **Check Server Status**: Shows if the server is running and the endpoint URL
+- **Server Status**: Shows if the server is running and the endpoint URL
+- **Check for Updates**: Check if a new version is available
+
+## Grafana Usage Examples
+
+For now, we only have a handful of example panels - eventually we'd like to include pre-built dashboards for importing.
+
+### Example Panels
+Sample Grafana panel configurations are available in the [`samples/panels/`](samples/panels/) directory to help you get started visualizing your Dispatcharr metrics.
+
+**Active Streams**  
+![Active Streams Panel](samples/panels/images/active-streams.png)  
+[View JSON](samples/panels/active-streams.json) - Monitor all active streams with detailed metadata including channel info, bitrates, client counts, and uptime.
+- Query: Joins `dispatcharr_stream_uptime_seconds` with `dispatcharr_stream_metadata` to display enriched stream information
+
+**Connection Usage**  
+![Connection Usage Panel](samples/panels/images/connection-usage.png)  
+[View JSON](samples/panels/connection-usage.json) - Track M3U profile connection usage against limits to prevent overages.
+- Query: Calculates `dispatcharr_profile_connection_usage` per profile and total usage across all profiles (excludes expired accounts)
+
+**Provider Expiry**  
+![Provider Expiry Panel](samples/panels/images/provider-expiry.png)  
+[View JSON](samples/panels/provider-expiry.json) - Monitor XC account expiration dates to avoid service interruptions.
+- Query: Shows `dispatcharr_profile_days_to_expiry` for XC accounts with expiration dates set
+
+**Active Clients**  
+![Active Clients Panel](samples/panels/images/active-clients.png)  
+[View JSON](samples/panels/active-clients.json) - View detailed client connection statistics including transfer rates and data usage.
+- Queries: Joins `dispatcharr_client_*` metrics with `dispatcharr_client_info` and `dispatcharr_stream_metadata` for enriched client details
+
+### Using Panel JSON
+
+1. In Grafana, create or edit a dashboard
+2. Click **Add** → **Visualization** (select any data source/visualization type - it will be overwritten)
+3. Click the panel menu (three dots) → **Inspect** → **Panel JSON**
+4. Paste the contents from one of the sample JSON files
+5. Click **Apply** to save the panel
+
+These panels serve as starting points - customize them to match your specific monitoring needs!
 
 ## License
 

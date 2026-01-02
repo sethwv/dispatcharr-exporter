@@ -1,0 +1,310 @@
+{
+  "id": 103,
+  "type": "table",
+  "title": "Streams",
+  "gridPos": {
+    "x": 0,
+    "y": 9,
+    "h": 6,
+    "w": 24
+  },
+  "fieldConfig": {
+    "defaults": {
+      "custom": {
+        "align": "center",
+        "cellOptions": {
+          "type": "auto",
+          "wrapText": false
+        },
+        "inspect": false,
+        "filterable": false
+      },
+      "mappings": [],
+      "thresholds": {
+        "mode": "absolute",
+        "steps": [
+          {
+            "color": "green",
+            "value": null
+          },
+          {
+            "color": "red",
+            "value": 80
+          }
+        ]
+      }
+    },
+    "overrides": [
+      {
+        "matcher": {
+          "id": "byName",
+          "options": "Channel"
+        },
+        "properties": [
+          {
+            "id": "custom.width",
+            "value": 100
+          },
+          {
+            "id": "decimals",
+            "value": 0
+          }
+        ]
+      },
+      {
+        "matcher": {
+          "id": "byName",
+          "options": "Logo"
+        },
+        "properties": [
+          {
+            "id": "custom.cellOptions",
+            "value": {
+              "type": "image"
+            }
+          },
+          {
+            "id": "custom.width",
+            "value": 200
+          }
+        ]
+      },
+      {
+        "matcher": {
+          "id": "byName",
+          "options": "Uptime"
+        },
+        "properties": [
+          {
+            "id": "unit",
+            "value": "s"
+          },
+          {
+            "id": "decimals",
+            "value": 0
+          },
+          {
+            "id": "custom.width",
+            "value": 100
+          },
+          {
+            "id": "custom.filterable",
+            "value": false
+          }
+        ]
+      },
+      {
+        "matcher": {
+          "id": "byName",
+          "options": "state"
+        },
+        "properties": [
+          {
+            "id": "custom.cellOptions",
+            "value": {
+              "applyToRow": true,
+              "type": "color-background"
+            }
+          },
+          {
+            "id": "custom.hidden",
+            "value": true
+          },
+          {
+            "id": "mappings",
+            "value": [
+              {
+                "options": {
+                  "active": {
+                    "color": "#55a64b52",
+                    "index": 0
+                  },
+                  "buffering": {
+                    "color": "#ff780a52",
+                    "index": 1
+                  },
+                  "error": {
+                    "color": "#e02f4452",
+                    "index": 3
+                  },
+                  "waiting_for_clients": {
+                    "color": "#1f61c452",
+                    "index": 2
+                  }
+                },
+                "type": "value"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "matcher": {
+          "id": "byValue",
+          "options": {
+            "op": "neq",
+            "reducer": "allValues",
+            "value": 99999999
+          }
+        },
+        "properties": [
+          {
+            "id": "custom.filterable"
+          },
+          {
+            "id": "filterable"
+          }
+        ]
+      },
+      {
+        "matcher": {
+          "id": "byName",
+          "options": "Provider"
+        },
+        "properties": [
+          {
+            "id": "custom.width",
+            "value": 100
+          }
+        ]
+      },
+      {
+        "matcher": {
+          "id": "byName",
+          "options": "Profile"
+        },
+        "properties": [
+          {
+            "id": "custom.width",
+            "value": 100
+          }
+        ]
+      },
+      {
+        "matcher": {
+          "id": "byName",
+          "options": "Resolution"
+        },
+        "properties": [
+          {
+            "id": "custom.width",
+            "value": 100
+          }
+        ]
+      }
+    ]
+  },
+  "transformations": [
+    {
+      "id": "labelsToFields",
+      "options": {
+        "mode": "columns"
+      }
+    },
+    {
+      "id": "organize",
+      "options": {
+        "excludeByName": {
+          "Time": true,
+          "Value #A": true,
+          "__name__": true,
+          "channel_group": true,
+          "channel_uuid": true,
+          "group": true,
+          "instance": true,
+          "job": true,
+          "process": true,
+          "profile_id": true,
+          "profile_name": false,
+          "provider": false,
+          "provider_type": true,
+          "resolution": false,
+          "stream_id": true,
+          "stream_name": true,
+          "stream_profile": true,
+          "video_codec": true
+        },
+        "includeByName": {},
+        "indexByName": {
+          "Time": 8,
+          "Value": 6,
+          "channel_name": 2,
+          "channel_number": 0,
+          "channel_uuid": 9,
+          "group": 10,
+          "instance": 11,
+          "job": 12,
+          "logo_url": 1,
+          "process": 13,
+          "profile_name": 5,
+          "provider": 4,
+          "resolution": 3,
+          "state": 7
+        },
+        "renameByName": {
+          "Value": "Uptime",
+          "channel_name": "Name",
+          "channel_number": "Channel",
+          "logo_url": "Logo",
+          "profile_name": "Profile",
+          "provider": "Provider",
+          "resolution": "Resolution"
+        }
+      }
+    },
+    {
+      "id": "convertFieldType",
+      "options": {
+        "conversions": [
+          {
+            "destinationType": "number",
+            "targetField": "Channel"
+          }
+        ],
+        "fields": {}
+      }
+    },
+    {
+      "id": "sortBy",
+      "options": {
+        "fields": {},
+        "sort": [
+          {
+            "desc": true,
+            "field": "Uptime"
+          }
+        ]
+      }
+    }
+  ],
+  "pluginVersion": "",
+  "targets": [
+    {
+      "editorMode": "code",
+      "exemplar": false,
+      "expr": "dispatcharr_stream_uptime_seconds * on(channel_uuid, channel_number) group_left(channel_name, logo_url, state, provider, profile_name, resolution) dispatcharr_stream_metadata",
+      "format": "table",
+      "instant": true,
+      "range": false,
+      "refId": "A"
+    }
+  ],
+  "datasource": {
+    "type": "prometheus",
+    "uid": "Vc-zI2snz"
+  },
+  "options": {
+    "showHeader": false,
+    "cellHeight": "sm",
+    "footer": {
+      "show": false,
+      "reducer": [
+        "count"
+      ],
+      "countRows": true,
+      "fields": "",
+      "enablePagination": false
+    },
+    "sortBy": []
+  }
+}
