@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 # Plugin configuration - update all settings here
 PLUGIN_CONFIG = {
-    "version": "-dev-d50bc712-20251231114522",
+    "version": "-dev-5629c555-20260102134229",
     "name": "Dispatcharr Exporter",
     "author": "SethWV",
     "description": "Expose Dispatcharr metrics in Prometheus exporter-compatible format for monitoring. Configuration changes require a restart of the metrics server. https://github.com/sethwv/dispatcharr-exporter/releases/",
@@ -425,6 +425,10 @@ class PrometheusMetricsCollector:
         metrics.append("# HELP dispatcharr_stream_metadata Stream metadata and enrichment information (state values: active, waiting_for_clients, buffering, stopping, error, unknown)")
         metrics.append("# TYPE dispatcharr_stream_metadata gauge")
         
+        # EPG Program information
+        metrics.append("# HELP dispatcharr_stream_programming Current EPG program information for active streams")
+        metrics.append("# TYPE dispatcharr_stream_programming gauge")
+        
         # Separate gauge metrics for values that change (recommended for proper time series)
         metrics.append("# HELP dispatcharr_stream_uptime_seconds Stream uptime in seconds since stream started")
         metrics.append("# TYPE dispatcharr_stream_uptime_seconds counter")
@@ -727,6 +731,83 @@ class PrometheusMetricsCollector:
                                         stream_value_metrics.append(
                                             f'dispatcharr_stream_metadata{{{",".join(metadata_labels)}}} 1'
                                         )
+                                        
+                                        # Get current EPG program information if available
+                                        if hasattr(channel, 'epg_data') and channel.epg_data:
+                                            try:
+                                                from apps.epg.models import ProgramData
+                                                from django.utils import timezone as django_timezone
+                                                
+                                                # Get current time
+                                                now = django_timezone.now()
+                                                
+                                                # Query for current program (where now is between start and end time)
+                                                current_program = ProgramData.objects.filter(
+                                                    epg=channel.epg_data,
+                                                    start_time__lte=now,
+                                                    end_time__gte=now
+                                                ).first()
+                                                
+                                                # Query for previous program (ended before now, get the most recent one)
+                                                previous_program = ProgramData.objects.filter(
+                                                    epg=channel.epg_data,
+                                                    end_time__lt=now
+                                                ).order_by('-end_time').first()
+                                                
+                                                # Query for next program (starts after now, get the nearest one)
+                                                next_program = ProgramData.objects.filter(
+                                                    epg=channel.epg_data,
+                                                    start_time__gt=now
+                                                ).order_by('start_time').first()
+                                                
+                                                # Helper function to escape and format program data
+                                                def format_program_data(program, prefix):
+                                                    """Format program data into safe label strings"""
+                                                    if not program:
+                                                        return [
+                                                            f'{prefix}_title=""',
+                                                            f'{prefix}_subtitle=""',
+                                                            f'{prefix}_description=""',
+                                                            f'{prefix}_start_time=""',
+                                                            f'{prefix}_end_time=""'
+                                                        ]
+                                                    
+                                                    # Escape special characters in strings
+                                                    title = program.title.replace('"', '\\"').replace('\\', '\\\\') if program.title else ""
+                                                    subtitle = program.sub_title.replace('"', '\\"').replace('\\', '\\\\') if program.sub_title else ""
+                                                    description = program.description.replace('"', '\\"').replace('\\', '\\\\') if program.description else ""
+                                                    
+                                                    # Format times as ISO strings
+                                                    start_time = program.start_time.isoformat()
+                                                    end_time = program.end_time.isoformat()
+                                                    
+                                                    return [
+                                                        f'{prefix}_title="{title}"',
+                                                        f'{prefix}_subtitle="{subtitle}"',
+                                                        f'{prefix}_description="{description}"',
+                                                        f'{prefix}_start_time="{start_time}"',
+                                                        f'{prefix}_end_time="{end_time}"'
+                                                    ]
+                                                
+                                                # Build EPG program labels for all three programs
+                                                epg_labels = base_labels.copy()
+                                                epg_labels.extend(format_program_data(previous_program, 'previous'))
+                                                epg_labels.extend(format_program_data(current_program, 'current'))
+                                                epg_labels.extend(format_program_data(next_program, 'next'))
+                                                
+                                                # Calculate progress (how far into the current program we are, 0-1)
+                                                progress = 0.0
+                                                if current_program:
+                                                    total_duration = (current_program.end_time - current_program.start_time).total_seconds()
+                                                    elapsed = (now - current_program.start_time).total_seconds()
+                                                    progress = min(1.0, max(0.0, elapsed / total_duration)) if total_duration > 0 else 0.0
+                                                
+                                                # Add program metric with progress as the value (0.0 if no current program)
+                                                stream_value_metrics.append(
+                                                    f'dispatcharr_stream_programming{{{",".join(epg_labels)}}} {progress:.4f}'
+                                                )
+                                            except Exception as e:
+                                                logger.debug(f"Error fetching EPG program for channel {channel_id}: {e}")
                                         
                                     except Stream.DoesNotExist:
                                         logger.debug(f"Stream {stream_id} not found in database")
