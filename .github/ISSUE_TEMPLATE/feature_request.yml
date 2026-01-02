@@ -1,0 +1,59 @@
+name: Feature Request
+description: Suggest a new feature or enhancement for the Dispatcharr Exporter Plugin
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a new feature! Please provide as much detail as possible to help us understand your request.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Feature Description
+      description: Describe the feature you'd like and what problem it solves or use case it addresses.
+      placeholder: |
+        I would like to be able to...
+        
+        This would help me because...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: feature-category
+    attributes:
+      label: Feature Category
+      description: What area does this feature relate to?
+      options:
+        - New Metric Type
+        - Existing Metric Enhancement
+        - Configuration Option
+        - Server/API Enhancement
+        - Documentation
+        - Dashboard/Grafana
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed Solution
+      description: How do you envision this feature working? Include any example metric output or implementation details.
+      placeholder: |
+        I think it would work like this:
+        1. Add a new metric called...
+        2. It would expose...
+        3. The format would be...
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context
+      description: Add any other context, screenshots, examples, or alternatives you've considered.
+      placeholder: Any additional information...
+    validations:
+      required: false

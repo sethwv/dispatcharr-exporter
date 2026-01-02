@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions & Support
+    url: https://discord.gg/Sp45V5BcxU
+    about: For general questions and support, please visit our thread in the Dispatcharr discord server.
+  - name: Dispatcharr Issues
+    url: https://github.com/laster13/dispatcharr/issues
+    about: For issues with Dispatcharr itself (not the exporter), report them to the main Dispatcharr repository
