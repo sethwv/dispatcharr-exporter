@@ -204,6 +204,43 @@ Sample Grafana panel configurations are available in the [`samples/panels/`](sam
 
 These panels serve as starting points - customize them to match your specific monitoring needs!
 
+## Grafana Usage Examples
+
+For now, we only have a handful of example panels - eventually we'd like to include pre-built dashboards for importing.
+
+### Example Panels
+Sample Grafana panel configurations are available in the [`samples/panels/`](samples/panels/) directory to help you get started visualizing your Dispatcharr metrics.
+
+**Active Streams**  
+![Active Streams Panel](samples/panels/images/active-streams.png)  
+[View JSON](samples/panels/active-streams.json) - Monitor all active streams with detailed metadata including channel info, bitrates, client counts, and uptime.
+- Query: Joins `dispatcharr_stream_uptime_seconds` with `dispatcharr_stream_metadata` to display enriched stream information
+
+**Connection Usage**  
+![Connection Usage Panel](samples/panels/images/connection-usage.png)  
+[View JSON](samples/panels/connection-usage.json) - Track M3U profile connection usage against limits to prevent overages.
+- Query: Calculates `dispatcharr_profile_connection_usage` per profile and total usage across all profiles (excludes expired accounts)
+
+**Provider Expiry**  
+![Provider Expiry Panel](samples/panels/images/provider-expiry.png)  
+[View JSON](samples/panels/provider-expiry.json) - Monitor XC account expiration dates to avoid service interruptions.
+- Query: Shows `dispatcharr_profile_days_to_expiry` for XC accounts with expiration dates set
+
+**Active Clients**  
+![Active Clients Panel](samples/panels/images/active-clients.png)  
+[View JSON](samples/panels/active-clients.json) - View detailed client connection statistics including transfer rates and data usage.
+- Queries: Joins `dispatcharr_client_*` metrics with `dispatcharr_client_info` and `dispatcharr_stream_metadata` for enriched client details
+
+### Using Panel JSON
+
+1. In Grafana, create or edit a dashboard
+2. Click **Add** → **Visualization** (select any data source/visualization type - it will be overwritten)
+3. Click the panel menu (three dots) → **Inspect** → **Panel JSON**
+4. Paste the contents from one of the sample JSON files
+5. Click **Apply** to save the panel
+
+These panels serve as starting points - customize them to match your specific monitoring needs!
+
 ## License
 
 This plugin is provided as-is for use with Dispatcharr.
