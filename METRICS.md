@@ -447,6 +447,57 @@ dispatcharr_stream_index >= dispatcharr_stream_available_streams - 1
 dispatcharr_stream_metadata{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0",channel_name="CBC Toronto",stream_id="2954",stream_name="CBC Toronto",provider="Provider A",provider_type="XC",state="active",logo_url="/api/channels/logos/1/cache/",profile_id="3",profile_name="Default",stream_profile="ffmpeg",video_codec="h264",resolution="1920x1080"} 1
 ```
 
+#### `dispatcharr_stream_programming`
+**Type:** gauge  
+**Value:** Current program progress (0.0 to 1.0), or 0.0 if no current program  
+**Labels:**
+- `channel_uuid` - Channel UUID
+- `channel_number` - Channel number
+- `previous_title` - Previous program title (empty string if none)
+- `previous_subtitle` - Previous program subtitle/episode (empty string if none)
+- `previous_description` - Previous program description (empty string if none)
+- `previous_start_time` - Previous program start time in ISO format (empty string if none)
+- `previous_end_time` - Previous program end time in ISO format (empty string if none)
+- `current_title` - Current program title (empty string if none)
+- `current_subtitle` - Current program subtitle/episode (empty string if none)
+- `current_description` - Current program description (empty string if none)
+- `current_start_time` - Current program start time in ISO format (empty string if none)
+- `current_end_time` - Current program end time in ISO format (empty string if none)
+- `next_title` - Next program title (empty string if none)
+- `next_subtitle` - Next program subtitle/episode (empty string if none)
+- `next_description` - Next program description (empty string if none)
+- `next_start_time` - Next program start time in ISO format (empty string if none)
+- `next_end_time` - Next program end time in ISO format (empty string if none)
+
+**Description:** EPG program schedule information for the active stream. Only present if channel has EPG data assigned. The metric value represents how far into the current program we are (0.0 = just started, 1.0 = about to end). Labels provide previous, current, and next program information.
+
+**Example:**
+```
+dispatcharr_stream_programming{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0",previous_title="Afternoon News",previous_subtitle="",previous_description="Local and national news coverage",previous_start_time="2026-01-02T17:00:00+00:00",previous_end_time="2026-01-02T18:00:00+00:00",current_title="The Evening News",current_subtitle="Special Report",current_description="Breaking news and analysis",current_start_time="2026-01-02T18:00:00+00:00",current_end_time="2026-01-02T19:00:00+00:00",next_title="Prime Time Drama",next_subtitle="Season 3 Episode 5",next_description="An exciting episode",next_start_time="2026-01-02T19:00:00+00:00",next_end_time="2026-01-02T20:00:00+00:00"} 0.5833
+```
+
+**Useful queries:**
+```promql
+# Time remaining in current program (minutes)
+(1 - dispatcharr_stream_programming) * 
+  (timestamp(dispatcharr_stream_programming{current_end_time!=""}) - 
+   timestamp(dispatcharr_stream_programming{current_start_time!=""})) / 60
+
+# Combine title and subtitle for display
+label_join(
+  dispatcharr_stream_programming,
+  "program_full",
+  " ",
+  "current_title",
+  "current_subtitle"
+)
+
+# Join with stream metadata for enriched dashboard
+dispatcharr_stream_programming
+* on(channel_uuid, channel_number) group_left(channel_name, logo_url, state)
+  dispatcharr_stream_metadata
+```
+
 ---
 
 ## Client Connection Metrics
