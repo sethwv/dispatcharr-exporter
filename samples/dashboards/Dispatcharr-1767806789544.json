@@ -21,7 +21,7 @@
       "type": "grafana",
       "id": "grafana",
       "name": "Grafana",
-      "version": "12.0.0"
+      "version": ""
     },
     {
       "type": "datasource",
@@ -128,16 +128,18 @@
         "textMode": "value_and_name",
         "wideLayout": false
       },
-      "pluginVersion": "12.0.0",
+      "pluginVersion": "",
       "targets": [
         {
           "disableTextWrap": false,
           "editorMode": "builder",
+          "exemplar": false,
           "expr": "dispatcharr_info",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
+          "instant": true,
           "legendFormat": "__auto",
-          "range": true,
+          "range": false,
           "refId": "A",
           "useBackend": false,
           "datasource": {
@@ -217,16 +219,18 @@
         "textMode": "value_and_name",
         "wideLayout": false
       },
-      "pluginVersion": "12.0.0",
+      "pluginVersion": "",
       "targets": [
         {
           "disableTextWrap": false,
           "editorMode": "code",
+          "exemplar": false,
           "expr": "dispatcharr_exporter_info",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
+          "instant": true,
           "legendFormat": "__auto",
-          "range": true,
+          "range": false,
           "refId": "A",
           "useBackend": false,
           "datasource": {
@@ -256,130 +260,12 @@
       "type": "stat"
     },
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_MONITORING_- PROMETHEUS}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green"
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 3,
-        "w": 24,
-        "x": 0,
-        "y": 5
-      },
-      "id": 12,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "center",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showPercentChange": false,
-        "textMode": "auto",
-        "wideLayout": true
-      },
-      "pluginVersion": "12.0.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_MONITORING_- PROMETHEUS}"
-          },
-          "editorMode": "code",
-          "expr": "dispatcharr_active_streams",
-          "hide": false,
-          "instant": false,
-          "legendFormat": "Active Streams",
-          "range": true,
-          "refId": "B"
-        },
-        {
-          "editorMode": "code",
-          "expr": "dispatcharr_active_clients",
-          "legendFormat": "Active Clients",
-          "range": true,
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_MONITORING_- PROMETHEUS}"
-          }
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_MONITORING_- PROMETHEUS}"
-          },
-          "editorMode": "code",
-          "expr": "dispatcharr_m3u_accounts{status=\"total\"}",
-          "hide": false,
-          "instant": false,
-          "legendFormat": "M3U Accounts",
-          "range": true,
-          "refId": "D"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_MONITORING_- PROMETHEUS}"
-          },
-          "editorMode": "code",
-          "expr": "dispatcharr_epg_sources{status=\"total\"}",
-          "hide": false,
-          "instant": false,
-          "legendFormat": "EPG Sources",
-          "range": true,
-          "refId": "E"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_MONITORING_- PROMETHEUS}"
-          },
-          "editorMode": "code",
-          "expr": "dispatcharr_channels",
-          "hide": false,
-          "instant": false,
-          "legendFormat": "Exported Channels",
-          "range": true,
-          "refId": "C"
-        }
-      ],
-      "type": "stat"
-    },
-    {
       "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 8
+        "y": 5
       },
       "id": 6,
       "panels": [],
@@ -646,7 +532,7 @@
         "h": 7,
         "w": 24,
         "x": 0,
-        "y": 9
+        "y": 6
       },
       "id": 1,
       "options": {
@@ -663,7 +549,7 @@
         "showHeader": false,
         "sortBy": []
       },
-      "pluginVersion": "12.0.0",
+      "pluginVersion": "",
       "targets": [
         {
           "editorMode": "code",
@@ -866,8 +752,8 @@
                 "value": 0
               },
               {
-                "id": "custom.width",
-                "value": 100
+                "id": "custom.minWidth",
+                "value": 50
               }
             ]
           },
@@ -890,8 +776,8 @@
                 "value": false
               },
               {
-                "id": "custom.width",
-                "value": 100
+                "id": "custom.minWidth",
+                "value": 50
               }
             ]
           },
@@ -981,8 +867,8 @@
                 "value": "decbytes"
               },
               {
-                "id": "custom.width",
-                "value": 100
+                "id": "custom.minWidth",
+                "value": 50
               }
             ]
           },
@@ -993,12 +879,12 @@
             },
             "properties": [
               {
-                "id": "custom.width",
-                "value": 100
-              },
-              {
                 "id": "unit",
                 "value": "bps"
+              },
+              {
+                "id": "custom.minWidth",
+                "value": 50
               }
             ]
           }
@@ -1008,9 +894,9 @@
         "h": 7,
         "w": 24,
         "x": 0,
-        "y": 16
+        "y": 13
       },
-      "id": 4,
+      "id": 104,
       "options": {
         "cellHeight": "sm",
         "footer": {
@@ -1026,7 +912,7 @@
         "showHeader": false,
         "sortBy": []
       },
-      "pluginVersion": "12.0.0",
+      "pluginVersion": "",
       "targets": [
         {
           "datasource": {
@@ -1173,96 +1059,12 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 23
+        "y": 20
       },
       "id": 5,
       "panels": [],
       "title": "Providers & Usage",
       "type": "row"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_MONITORING_- PROMETHEUS}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "continuous-RdYlGr"
-          },
-          "decimals": 0,
-          "fieldMinMax": false,
-          "mappings": [],
-          "min": -1,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green"
-              }
-            ]
-          },
-          "unit": "d"
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": ""
-            },
-            "properties": []
-          }
-        ]
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 24
-      },
-      "id": 3,
-      "options": {
-        "displayMode": "basic",
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": false
-        },
-        "maxVizHeight": 300,
-        "minVizHeight": 16,
-        "minVizWidth": 8,
-        "namePlacement": "auto",
-        "orientation": "horizontal",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showUnfilled": true,
-        "sizing": "auto",
-        "valueMode": "color"
-      },
-      "pluginVersion": "12.0.0",
-      "targets": [
-        {
-          "editorMode": "code",
-          "exemplar": false,
-          "expr": "dispatcharr_profile_days_to_expiry != -1",
-          "instant": true,
-          "legendFormat": "{{account_name}} {{profile_name}}",
-          "range": false,
-          "refId": "A",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${DS_MONITORING_- PROMETHEUS}"
-          }
-        }
-      ],
-      "title": "Expiry",
-      "type": "bargauge"
     },
     {
       "datasource": {
@@ -1310,8 +1112,8 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 12,
-        "y": 24
+        "x": 0,
+        "y": 21
       },
       "id": 2,
       "options": {
@@ -1338,7 +1140,7 @@
         "sizing": "auto",
         "valueMode": "color"
       },
-      "pluginVersion": "12.0.0",
+      "pluginVersion": "",
       "targets": [
         {
           "datasource": {
@@ -1370,6 +1172,208 @@
       ],
       "title": "Usage",
       "type": "bargauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_MONITORING_- PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "continuous-RdYlGr"
+          },
+          "decimals": 0,
+          "fieldMinMax": false,
+          "mappings": [],
+          "min": -1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          },
+          "unit": "d"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": ""
+            },
+            "properties": []
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 21
+      },
+      "id": 3,
+      "options": {
+        "displayMode": "basic",
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "maxVizHeight": 300,
+        "minVizHeight": 16,
+        "minVizWidth": 8,
+        "namePlacement": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "sizing": "auto",
+        "valueMode": "color"
+      },
+      "pluginVersion": "",
+      "targets": [
+        {
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "dispatcharr_profile_days_to_expiry != -1",
+          "instant": true,
+          "legendFormat": "{{account_name}} {{profile_name}}",
+          "range": false,
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_MONITORING_- PROMETHEUS}"
+          }
+        }
+      ],
+      "title": "Expiry",
+      "type": "bargauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_MONITORING_- PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 24,
+        "x": 0,
+        "y": 29
+      },
+      "id": 12,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_MONITORING_- PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "dispatcharr_active_streams",
+          "hide": false,
+          "instant": false,
+          "legendFormat": "Active Streams",
+          "range": true,
+          "refId": "B"
+        },
+        {
+          "editorMode": "code",
+          "expr": "dispatcharr_active_clients",
+          "legendFormat": "Active Clients",
+          "range": true,
+          "refId": "A",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_MONITORING_- PROMETHEUS}"
+          }
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_MONITORING_- PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "dispatcharr_m3u_accounts{status=\"total\"}",
+          "hide": false,
+          "instant": false,
+          "legendFormat": "M3U Accounts",
+          "range": true,
+          "refId": "D"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_MONITORING_- PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "dispatcharr_epg_sources{status=\"total\"}",
+          "hide": false,
+          "instant": false,
+          "legendFormat": "EPG Sources",
+          "range": true,
+          "refId": "E"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_MONITORING_- PROMETHEUS}"
+          },
+          "editorMode": "code",
+          "expr": "dispatcharr_channels",
+          "hide": false,
+          "instant": false,
+          "legendFormat": "Exported Channels",
+          "range": true,
+          "refId": "C"
+        }
+      ],
+      "type": "stat"
     },
     {
       "datasource": {
@@ -1422,7 +1426,7 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "12.0.0",
+      "pluginVersion": "",
       "targets": [
         {
           "editorMode": "code",
@@ -1442,6 +1446,7 @@
       "type": "stat"
     }
   ],
+  "refresh": "auto",
   "schemaVersion": 41,
   "tags": [],
   "templating": {
@@ -1466,13 +1471,13 @@
     ]
   },
   "time": {
-    "from": "now-1h",
+    "from": "now-6h",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "browser",
   "title": "Dispatcharr",
   "uid": "aa842463-afa6-45fb-b63c-1649aa62ebe9",
-  "version": 15,
+  "version": 20,
   "weekStart": ""
 }
