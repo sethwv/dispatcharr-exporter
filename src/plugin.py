@@ -12,7 +12,9 @@ Runs a lightweight gevent WSGI server on a configurable port to serve
 Prometheus metrics independently of Dispatcharr's main web server.
 """
 
+import json
 import logging
+import os
 import threading
 import time
 from typing import Dict, Any
@@ -21,18 +23,39 @@ from apps.proxy.ts_proxy.constants import ChannelMetadataField
 
 logger = logging.getLogger(__name__)
 
-# Plugin configuration - update all settings here
-PLUGIN_CONFIG = {
-    "version": "-dev-aaca3020-20260102145304",
-    "name": "Dispatcharr Exporter",
-    "author": "SethWV",
-    "description": "Expose Dispatcharr metrics in Prometheus exporter-compatible format for monitoring. Configuration changes require a restart of the metrics server. https://github.com/sethwv/dispatcharr-exporter/releases/",
-    "min_dispatcharr_version": "v0.14.0",
-    "repo_url": "https://github.com/sethwv/dispatcharr-exporter",
-    "default_port": 9192,
-    "default_host": "0.0.0.0",
-    "auto_start_default": False,
-}
+# Load plugin configuration from plugin.json
+def _load_plugin_config():
+    """Load plugin configuration from plugin.json file"""
+    config_path = os.path.join(os.path.dirname(__file__), 'plugin.json')
+    try:
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+
+        # Ensure all required fields exist with defaults
+        config.setdefault('min_dispatcharr_version', 'v0.14.0')
+        config.setdefault('repo_url', 'https://github.com/sethwv/dispatcharr-exporter')
+        config.setdefault('default_port', 9192)
+        config.setdefault('default_host', '0.0.0.0')
+        config.setdefault('auto_start_default', False)
+
+        return config
+    except Exception as e:
+        logger.warning(f"Could not load plugin.json, using fallback config: {e}")
+        # Fallback configuration if JSON can't be loaded
+        return {
+            "version": "-dev-345000c8-20260212103526",
+            "name": "Dispatcharr Exporter",
+            "author": "SethWV",
+            "description": "Expose Dispatcharr metrics in Prometheus exporter-compatible format for monitoring",
+            "min_dispatcharr_version": "v0.14.0",
+            "repo_url": "https://github.com/sethwv/dispatcharr-exporter",
+            "help_url": "https://github.com/sethwv/dispatcharr-exporter",
+            "default_port": 9192,
+            "default_host": "0.0.0.0",
+            "auto_start_default": False,
+        }
+
+PLUGIN_CONFIG = _load_plugin_config()
 
 # Global server instance
 _metrics_server = None
@@ -56,38 +79,10 @@ class PrometheusMetricsCollector:
         
         metrics = []
         settings = settings or {}
-        
-        # Get Dispatcharr version
-        dispatcharr_version = "unknown"
-        dispatcharr_timestamp = None
-        try:
-            # Try importing version module (add /app to path if needed)
-            import sys
-            if '/app' not in sys.path:
-                sys.path.insert(0, '/app')
-            import version
-            dispatcharr_version = getattr(version, '__version__', 'unknown')
-            dispatcharr_timestamp = getattr(version, '__timestamp__', None)
-        except Exception:
-            try:
-                # Try reading from file directly
-                with open('/app/version.py', 'r') as f:
-                    content = f.read()
-                    import re
-                    version_match = re.search(r"__version__\s*=\s*['\"]([^'\"]+)['\"]", content)
-                    if version_match:
-                        dispatcharr_version = version_match.group(1)
-                    timestamp_match = re.search(r"__timestamp__\s*=\s*['\"]([^'\"]+)['\"]", content)
-                    if timestamp_match:
-                        dispatcharr_timestamp = timestamp_match.group(1)
-            except Exception:
-                pass
-        
-        # Format version with timestamp if available (dev builds)
-        full_version = dispatcharr_version
-        if dispatcharr_timestamp:
-            full_version = f"v{dispatcharr_version}-{dispatcharr_timestamp}"
-        
+
+        # Get Dispatcharr version using the same logic as version check in start()
+        dispatcharr_version, dispatcharr_timestamp, full_version = MetricsServer._get_dispatcharr_version()
+
         # Add metadata
         metrics.append("# HELP dispatcharr_info Dispatcharr version and instance information")
         metrics.append("# TYPE dispatcharr_info gauge")
@@ -108,7 +103,7 @@ class PrometheusMetricsCollector:
         # Build labels programmatically from Plugin fields
         settings_labels = []
         port_value = PLUGIN_CONFIG["default_port"]
-        
+
         for field in Plugin.fields:
             field_id = field['id']
             field_value = settings.get(field_id, field['default']) if settings else field['default']
@@ -1142,7 +1137,7 @@ class PrometheusMetricsCollector:
 
 class MetricsServer:
     """Lightweight HTTP server to expose Prometheus metrics using gevent"""
-    
+
     def __init__(self, collector, port=None, host=None):
         self.collector = collector
         self.port = port if port is not None else PLUGIN_CONFIG["default_port"]
@@ -1151,7 +1146,44 @@ class MetricsServer:
         self.server = None
         self.running = False
         self.settings = {}
-    
+
+    @staticmethod
+    def _get_dispatcharr_version():
+        """Get Dispatcharr version using the same logic as the dispatcharr_info metric.
+        Returns tuple of (version, timestamp, full_version)"""
+        dispatcharr_version = "unknown"
+        dispatcharr_timestamp = None
+
+        try:
+            # Try importing version module (add /app to path if needed)
+            import sys
+            if '/app' not in sys.path:
+                sys.path.insert(0, '/app')
+            import version
+            dispatcharr_version = getattr(version, '__version__', 'unknown')
+            dispatcharr_timestamp = getattr(version, '__timestamp__', None)
+        except Exception:
+            try:
+                # Try reading from file directly
+                with open('/app/version.py', 'r') as f:
+                    content = f.read()
+                    import re
+                    version_match = re.search(r"__version__\s*=\s*['\"]([^'\"]+)['\"]", content)
+                    if version_match:
+                        dispatcharr_version = version_match.group(1)
+                    timestamp_match = re.search(r"__timestamp__\s*=\s*['\"]([^'\"]+)['\"]", content)
+                    if timestamp_match:
+                        dispatcharr_timestamp = timestamp_match.group(1)
+            except Exception:
+                pass
+
+        # Format version with timestamp if available (dev builds)
+        full_version = dispatcharr_version
+        if dispatcharr_timestamp:
+            full_version = f"v{dispatcharr_version}-{dispatcharr_timestamp}"
+
+        return dispatcharr_version, dispatcharr_timestamp, full_version
+
     @staticmethod
     def _compare_versions(current, minimum):
         """Compare semantic versions. Returns True if current >= minimum."""
@@ -1159,24 +1191,24 @@ class MetricsServer:
             # Strip 'v' prefix if present
             current = current.lstrip('v')
             minimum = minimum.lstrip('v')
-            
+
             # Split versions into parts
             current_parts = [int(x) for x in current.split('.')]
             minimum_parts = [int(x) for x in minimum.split('.')]
-            
+
             # Pad shorter version with zeros
             while len(current_parts) < len(minimum_parts):
                 current_parts.append(0)
             while len(minimum_parts) < len(current_parts):
                 minimum_parts.append(0)
-            
+
             # Compare
             for c, m in zip(current_parts, minimum_parts):
                 if c > m:
                     return True
                 elif c < m:
                     return False
-            
+
             # Equal
             return True
         except (ValueError, AttributeError):
@@ -1329,30 +1361,14 @@ class MetricsServer:
         # Check Dispatcharr version meets minimum requirement
         min_version = PLUGIN_CONFIG.get("min_dispatcharr_version", "1.0.0")
         try:
-            # Get Dispatcharr version (same logic as in collect_metrics)
-            dispatcharr_version = "unknown"
-            try:
-                import version
-                if '/app' not in sys.path:
-                    sys.path.insert(0, '/app')
-                dispatcharr_version = getattr(version, '__version__', 'unknown')
-            except Exception:
-                try:
-                    with open('/app/version.py', 'r') as f:
-                        content = f.read()
-                        version_match = re.search(r"__version__\s*=\s*['\"]([^'\"]+)['\"]", content)
-                        if version_match:
-                            dispatcharr_version = version_match.group(1)
-                except Exception:
-                    pass
-            
+            # Get Dispatcharr version using the same logic as dispatcharr_info metric
+            dispatcharr_version, dispatcharr_timestamp, full_version = self._get_dispatcharr_version()
+
             # Check version requirement (skip dev builds with timestamp suffix)
             if dispatcharr_version != "unknown":
-                version_parts = dispatcharr_version.lstrip('v').split('-')
-                is_dev_build = len(version_parts) > 1 and version_parts[1].isdigit()
-                
-                if is_dev_build:
-                    logger.info(f"Dev build detected ({dispatcharr_version}), skipping version check")
+                # If timestamp exists, this is a dev build - skip version check
+                if dispatcharr_timestamp:
+                    logger.info(f"Dev build detected ({full_version}), skipping version check")
                 elif not self._compare_versions(dispatcharr_version, min_version):
                     logger.error(f"Dispatcharr {dispatcharr_version} does not meet minimum requirement {min_version}")
                     return False
@@ -1536,84 +1552,80 @@ class Plugin:
             "label": "Auto-Start Metrics Server",
             "type": "boolean",
             "default": PLUGIN_CONFIG["auto_start_default"],
-            "help_text": "Automatically start the metrics server when plugin loads (recommended)"
+            "description": "Automatically start the metrics server when plugin loads (recommended)"
         },
         {
             "id": "suppress_access_logs",
             "label": "Suppress Access Logs",
             "type": "boolean",
             "default": True,
-            "help_text": "Suppress HTTP access logs for /metrics requests"
-        },
-        {
-            "id": "disable_update_notifications",
-            "label": "Disable Update Notifications",
-            "type": "boolean",
-            "default": False,
-            "help_text": "Disable automatic update notifications (updates can still be checked manually via the 'Check for Updates' action)"
+            "description": "Suppress HTTP access logs for /metrics requests"
         },
         {
             "id": "port",
             "label": "Metrics Server Port",
             "type": "number",
             "default": PLUGIN_CONFIG["default_port"],
-            "help_text": "Port for the metrics HTTP server"
+            "description": "Port for the metrics HTTP server",
+            "placeholder": "9192"
         },
         {
             "id": "host",
             "label": "Metrics Server Host",
             "type": "string",
             "default": PLUGIN_CONFIG["default_host"],
-            "help_text": "Host address to bind to (0.0.0.0 for all interfaces, 127.0.0.1 for localhost only)"
+            "description": "Host address to bind to (0.0.0.0 for all interfaces, 127.0.0.1 for localhost only)",
+            "placeholder": "0.0.0.0"
         },
         {
             "id": "base_url",
             "label": "Dispatcharr Base URL (Optional)",
             "type": "string",
             "default": "",
-            "help_text": "URL for Dispatcharr API (e.g., http://localhost:5656 or https://dispatcharr.example.com). If set, logo URLs will be absolute instead of relative paths. Leave empty to use relative paths."
+            "description": "URL for Dispatcharr API (e.g., http://localhost:5656 or https://dispatcharr.example.com). If set, logo URLs will be absolute instead of relative paths. Leave empty to use relative paths.",
+            "placeholder": "http://localhost:5656"
         },
         {
             "id": "include_m3u_stats",
             "label": "Include M3U Account Statistics",
             "type": "boolean",
             "default": True,
-            "help_text": "Include M3U account and profile metrics in the output"
+            "description": "Include M3U account and profile metrics in the output"
         },
         {
             "id": "include_epg_stats",
             "label": "Include EPG Source Statistics",
             "type": "boolean",
             "default": False,
-            "help_text": "Include EPG source and status metrics in the output"
+            "description": "Include EPG source and status metrics in the output"
         },
         {
             "id": "include_vod_stats",
             "label": "Include VOD Statistics",
             "type": "boolean",
             "default": False,
-            "help_text": "Include VOD session and stream metrics in the output"
+            "description": "Include VOD session and stream metrics in the output"
         },
         {
             "id": "include_client_stats",
             "label": "Include Client Connection Statistics",
             "type": "boolean",
             "default": False,
-            "help_text": "Include individual client connection information."
+            "description": "Include individual client connection information"
         },
         {
             "id": "include_source_urls",
             "label": "Include Provider/Source Information",
             "type": "boolean",
             "default": False,
-            "help_text": "Include server URLs & XC usernames in M3U account and EPG source metrics. Ensure this is DISABLED if sharing output in Discord for troubleshooting."
+            "description": "Include server URLs & XC usernames in M3U account and EPG source metrics. Ensure this is DISABLED if sharing output in Discord for troubleshooting"
         },
         {
             "id": "include_legacy_metrics",
             "label": "Include Legacy Metric Formats (Deprecated)",
             "type": "boolean",
             "default": False,
-            "help_text": "Include backward-compatible metrics with dynamic values as labels (e.g., dispatcharr_stream_info with all stats as labels). This format was used in v1.1.0 and earlier. NOT recommended - use the new separate gauge metrics instead for proper time series. Only enable if you have existing dashboards that need migration time."
+            "description": "Include backward-compatible metrics with dynamic values as labels (e.g., dispatcharr_stream_info with all stats as labels). This format was used in v1.1.0 and earlier. NOT recommended - use the new separate gauge metrics instead for proper time series. Only enable if you have existing dashboards that need migration time"
         }
     ]
 
@@ -1621,27 +1633,42 @@ class Plugin:
         {
             "id": "start_server",
             "label": "Start Metrics Server",
-            "description": "Start the HTTP metrics server"
+            "description": "Start the HTTP metrics server",
+            "button_label": "Start Server",
+            "button_variant": "primary",
+            "button_color": "green"
         },
         {
             "id": "stop_server",
             "label": "Stop Metrics Server",
-            "description": "Stop the HTTP metrics server"
+            "description": "Stop the HTTP metrics server",
+            "button_label": "Stop Server",
+            "button_variant": "danger",
+            "button_color": "red"
         },
         {
             "id": "restart_server",
             "label": "Restart Metrics Server",
-            "description": "Restart the HTTP metrics server"
+            "description": "Restart the HTTP metrics server",
+            "button_label": "Restart Server",
+            "button_variant": "primary",
+            "button_color": "orange"
         },
         {
             "id": "server_status",
             "label": "Server Status",
-            "description": "Check if the metrics server is running and get endpoint URL"
+            "description": "Check if the metrics server is running and get endpoint URL",
+            "button_label": "Check Status",
+            "button_variant": "secondary",
+            "button_color": "blue"
         },
         {
             "id": "check_for_updates",
             "label": "Check for Updates",
-            "description": "Check if a new version is available"
+            "description": "Check if a new version is available",
+            "button_label": "Check Updates",
+            "button_variant": "secondary",
+            "button_color": "gray"
         }
     ]
 
@@ -1721,102 +1748,13 @@ class Plugin:
     
     def __init__(self):
         self.collector = PrometheusMetricsCollector()
-        
+
         # Mitigation for root-owned __pycache__ directories created during Dispatcharr startup
         # This is a workaround for a Dispatcharr issue where migrate/collectstatic run as root
         self._cleanup_root_pycache()
-        
-        # Check for updates in background (with rate limiting via Redis TTL)
-        def check_for_updates():
-            try:
-                import time
-                time.sleep(2)  # Brief delay to not slow down plugin load
-                
-                # Check if update notifications are disabled
-                try:
-                    from apps.plugins.models import PluginConfig
-                    config = PluginConfig.objects.filter(key='dispatcharr_exporter').first()
-                    if config and config.settings and config.settings.get('disable_update_notifications', False):
-                        logger.debug("Dispatcharr Exporter: Update notifications are disabled")
-                        return
-                except Exception as e:
-                    logger.debug(f"Could not check update notification setting: {e}")
-                
-                # Use helper method to check for updates
-                result = self._check_github_for_updates()
-                
-                # Handle dev build
-                if result.get('is_dev'):
-                    logger.debug(f"Dispatcharr Exporter: Running dev version ({result['current']})")
-                    return
-                
-                # Handle errors
-                if 'error' in result:
-                    logger.debug(f"Could not check for updates: {result['error']}")
-                    return
-                
-                current_version = result['current']
-                latest_version = result['latest']
-                repo_url = result['repo_url']
-                
-                if result['update_available']:
-                    # Store update info in Redis
-                    try:
-                        from core.utils import RedisClient
-                        redis_client = RedisClient.get_client()
-                        if redis_client:
-                            redis_client.setex(
-                                "prometheus_exporter:update_available",
-                                60 * 60 * 24,  # 24 hour TTL
-                                latest_version
-                            )
-                            
-                            # Check if we've sent a notification recently (rate limiting)
-                            last_notification = redis_client.get("prometheus_exporter:last_update_notification")
-                            if last_notification:
-                                logger.debug("Dispatcharr Exporter: Update notification already sent recently (rate limited)")
-                                return
-                    except Exception:
-                        pass
-                    
-                    # Send notification using existing logo_processing_summary type
-                    try:
-                        from core.utils import send_websocket_update
-                        send_websocket_update('updates', 'update', {
-                            'type': 'logo_processing_summary',
-                            'message': f'Dispatcharr Exporter v{latest_version} is available (currently running v{current_version}). Download: {repo_url}/releases/latest'
-                        })
-                        
-                        # Set rate limit flag after successful notification (5 minute TTL)
-                        try:
-                            from core.utils import RedisClient
-                            redis_client = RedisClient.get_client()
-                            if redis_client:
-                                redis_client.setex(
-                                    "prometheus_exporter:last_update_notification",
-                                    60 * 5,  # 5 minute TTL
-                                    latest_version
-                                )
-                        except Exception:
-                            pass
-                        
-                        logger.info(f"Dispatcharr Exporter: Update available! Current: {current_version}, Latest: {latest_version}")
-                        logger.info(f"Download: {repo_url}/releases/latest")
-                    except Exception as e:
-                        logger.debug(f"Could not send websocket notification: {e}")
-                else:
-                    logger.debug(f"Dispatcharr Exporter: Running latest version ({current_version})")
-                    
-            except Exception as e:
-                logger.debug(f"Could not check for updates: {e}")
-        
-        # Start version check in background thread
-        import threading
-        threading.Thread(target=check_for_updates, daemon=True, name="version-check").start()
-        
-        # Don't check Redis here - it may not be ready during startup
-        # File-based locking will prevent duplicate auto-start attempts
-        
+
+        # Note: Automatic update checks have been removed. Use the "Check for Updates" action button instead.
+
         # Attempt delayed auto-start with file-based lock to prevent multiple workers from racing
         # Only attempt once per process to avoid multiple threads competing
         global _metrics_server, _auto_start_attempted

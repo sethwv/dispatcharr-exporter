@@ -1,5 +1,12 @@
 #!/bin/bash
 # Package Dispatcharr Prometheus Exporter Plugin
+#
+# Dispatcharr 0.19.0 Compatibility:
+# - The src/ folder contains the plugin source code
+# - src/plugin.json contains the plugin manifest
+# - src/plugin.py is the main plugin file (source of truth)
+# - The build process packages src/ as dispatcharr_exporter/
+# - This structure supports both old and new Dispatcharr plugin systems
 
 set -e
 
@@ -12,6 +19,13 @@ VERSION=""
 # Verify source directory exists
 if [ ! -d "$SRC_DIR" ]; then
     echo "Error: Source directory not found: $SRC_DIR"
+    exit 1
+fi
+
+# Verify plugin.json exists in src/
+if [ ! -f "$SRC_DIR/plugin.json" ]; then
+    echo "Error: plugin.json not found in $SRC_DIR"
+    echo "This is required for Dispatcharr 0.19.0 compatibility"
     exit 1
 fi
 
@@ -28,8 +42,10 @@ if [ -z "$GITHUB_ACTIONS" ]; then
     # Update version in plugin.py
     if [[ "$OSTYPE" == "darwin"* ]]; then
         sed -i '' "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" "$SRC_DIR/plugin.py"
+        sed -i '' "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" "$SRC_DIR/plugin.json"
     else
         sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" "$SRC_DIR/plugin.py"
+        sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" "$SRC_DIR/plugin.json"
     fi
 else
     # Extract version from plugin.py (set by workflow)
