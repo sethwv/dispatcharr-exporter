@@ -64,6 +64,7 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.VERSION }}"
           sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" src/plugin.py
+          sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" src/plugin.json
           
       - name: Package plugin
         run: |
