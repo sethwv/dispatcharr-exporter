@@ -772,10 +772,17 @@ class PrometheusMetricsCollector:
                                                             f'{prefix}_end_time=""'
                                                         ]
                                                     
-                                                    # Escape special characters in strings
-                                                    title = program.title.replace('"', '\\"').replace('\\', '\\\\') if program.title else ""
-                                                    subtitle = program.sub_title.replace('"', '\\"').replace('\\', '\\\\') if program.sub_title else ""
-                                                    description = program.description.replace('"', '\\"').replace('\\', '\\\\') if program.description else ""
+                                                    # Escape special characters in strings (order matters: backslash first, then quotes)
+                                                    def escape_label_value(value):
+                                                        """Escape special characters for Prometheus label values"""
+                                                        if not value:
+                                                            return ""
+                                                        # Order is critical: escape backslashes first, then quotes, then newlines
+                                                        return value.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n')
+
+                                                    title = escape_label_value(program.title)
+                                                    subtitle = escape_label_value(program.sub_title)
+                                                    description = escape_label_value(program.description)
                                                     
                                                     # Format times as ISO strings
                                                     start_time = program.start_time.isoformat()
