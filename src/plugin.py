@@ -43,7 +43,7 @@ def _load_plugin_config():
         logger.warning(f"Could not load plugin.json, using fallback config: {e}")
         # Fallback configuration if JSON can't be loaded
         return {
-            "version": "-dev-345000c8-20260212103526",
+            "version": "-dev-00140f6f-20260214101124",
             "name": "Dispatcharr Exporter",
             "author": "SethWV",
             "description": "Expose Dispatcharr metrics in Prometheus exporter-compatible format for monitoring",
@@ -1141,7 +1141,17 @@ class MetricsServer:
     def __init__(self, collector, port=None, host=None):
         self.collector = collector
         self.port = port if port is not None else PLUGIN_CONFIG["default_port"]
-        self.host = host if host is not None else PLUGIN_CONFIG["default_host"]
+        
+        # Normalize and validate host parameter
+        # Handle None, empty string, or whitespace-only strings
+        if host is None or (isinstance(host, str) and not host.strip()):
+            self.host = PLUGIN_CONFIG["default_host"]
+        else:
+            self.host = host.strip() if isinstance(host, str) else str(host)
+        
+        # Log what we're actually using
+        logger.info(f"MetricsServer initialized with host='{self.host}' (type: {type(self.host).__name__}), port={self.port}")
+        
         self.server_thread = None
         self.server = None
         self.running = False
@@ -1379,15 +1389,31 @@ class MetricsServer:
         except Exception as e:
             logger.warning(f"Could not verify Dispatcharr version: {e}. Proceeding anyway.")
         
-        # Check if port is already in use
+        # Check if port is already in use and host is valid
         import socket
+        
+        # Log exactly what we're trying to bind to
+        logger.info(f"Attempting to bind to host='{self.host}' (type: {type(self.host).__name__}, repr: {repr(self.host)}), port={self.port}")
+        
         try:
+            # First, validate that the host address can be resolved
+            try:
+                socket.getaddrinfo(self.host, self.port, socket.AF_INET, socket.SOCK_STREAM)
+            except socket.gaierror as e:
+                logger.error(f"Cannot resolve host '{self.host}': {e}. In Docker, use '0.0.0.0' to bind to all interfaces.")
+                return False
+            
+            # Now check if we can bind to the port
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             sock.bind((self.host, self.port))
             sock.close()
+            logger.debug(f"Successfully verified we can bind to {self.host}:{self.port}")
         except OSError as e:
-            logger.error(f"Port {self.port} is already in use: {e}")
+            if e.errno == -2 or 'Name or service not known' in str(e):
+                logger.error(f"Cannot resolve host '{self.host}' (repr: {repr(self.host)}): {e}. In Docker, use '0.0.0.0' to bind to all interfaces.")
+            else:
+                logger.error(f"Cannot bind to {self.host}:{self.port}: {e}")
             return False
         
         self.settings = settings or {}
@@ -1845,6 +1871,12 @@ class Plugin:
                             port = int(settings_dict.get('port', PLUGIN_CONFIG["default_port"]))
                             host = settings_dict.get('host', PLUGIN_CONFIG["default_host"])
                             
+                            # Normalize host: handle None, empty string, or whitespace-only
+                            if not host or (isinstance(host, str) and not host.strip()):
+                                host = PLUGIN_CONFIG["default_host"]
+                            elif isinstance(host, str):
+                                host = host.strip()
+                            
                             logger.debug(f"Auto-start is enabled, attempting to start on {host}:{port}")
                             
                             # Check if port is available before trying to start
@@ -1940,6 +1972,15 @@ class Plugin:
             try:
                 port = int(settings.get("port", PLUGIN_CONFIG["default_port"]))
                 host = settings.get("host", PLUGIN_CONFIG["default_host"])
+                
+                # Normalize host: handle None, empty string, or whitespace-only
+                if not host or (isinstance(host, str) and not host.strip()):
+                    host = PLUGIN_CONFIG["default_host"]
+                    logger_ctx.info(f"Host was empty/None, using default: {host}")
+                elif isinstance(host, str):
+                    host = host.strip()
+                
+                logger_ctx.info(f"Starting server with host='{host}' (repr: {repr(host)}), port={port}")
                 
                 # Check Redis flag first (works across workers)
                 if server_running_redis:
@@ -2078,6 +2119,13 @@ class Plugin:
                 # Now start the server
                 port = int(settings.get('port', PLUGIN_CONFIG["default_port"]))
                 host = settings.get('host', PLUGIN_CONFIG["default_host"])
+                
+                # Normalize host: handle None, empty string, or whitespace-only
+                if not host or (isinstance(host, str) and not host.strip()):
+                    host = PLUGIN_CONFIG["default_host"]
+                    logger_ctx.info(f"Host was empty/None, using default: {host}")
+                elif isinstance(host, str):
+                    host = host.strip()
                 
                 # Check if already running (shouldn't be, but check anyway)
                 if redis_client:
