@@ -698,7 +698,7 @@ dispatcharr_vod_sessions 3
 **Value:** Active stream count  
 **Labels:** None
 
-**Description:** Total number of active VOD streams.
+**Description:** Number of VOD sessions with active streams (consistent with profile connection counting - counts 1 per session regardless of client count).
 
 **Example:**
 ```

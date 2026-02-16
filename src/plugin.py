@@ -43,7 +43,7 @@ def _load_plugin_config():
         logger.warning(f"Could not load plugin.json, using fallback config: {e}")
         # Fallback configuration if JSON can't be loaded
         return {
-            "version": "-dev-00140f6f-20260214101124",
+            "version": "-dev-47c49249-20260216130717",
             "name": "Dispatcharr Exporter",
             "author": "SethWV",
             "description": "Expose Dispatcharr metrics in Prometheus exporter-compatible format for monitoring",
@@ -277,8 +277,10 @@ class PrometheusMetricsCollector:
             if self.redis_client:
                 # Calculate actual profile connections by scanning active streams
                 # This is more accurate than the Redis counters which don't update during fallback
+                # We need to check BOTH live channel streams AND VOD connections
                 actual_profile_connections = {}
                 
+                # Count live channel streams by scanning channel metadata
                 try:
                     pattern = "channel_stream:*"
                     for key in self.redis_client.scan_iter(match=pattern):
@@ -314,7 +316,38 @@ class PrometheusMetricsCollector:
                         except Exception as e:
                             logger.debug(f"Error processing stream key for profile counting: {e}")
                 except Exception as e:
-                    logger.debug(f"Error calculating actual profile connections: {e}")
+                    logger.debug(f"Error calculating live channel profile connections: {e}")
+                
+                # Count VOD connections by scanning persistent connection keys
+                try:
+                    pattern = "vod_persistent_connection:*"
+                    for key in self.redis_client.scan_iter(match=pattern):
+                        try:
+                            connection_data = self.redis_client.hgetall(key)
+                            if connection_data:
+                                # Handle both bytes and string keys
+                                if isinstance(list(connection_data.keys())[0], bytes):
+                                    m3u_profile_id = connection_data.get(b'm3u_profile_id', b'')
+                                    active_streams = connection_data.get(b'active_streams', b'0')
+                                    if isinstance(m3u_profile_id, bytes):
+                                        m3u_profile_id = m3u_profile_id.decode('utf-8')
+                                    if isinstance(active_streams, bytes):
+                                        active_streams = active_streams.decode('utf-8')
+                                else:
+                                    m3u_profile_id = connection_data.get('m3u_profile_id', '')
+                                    active_streams = connection_data.get('active_streams', '0')
+                                
+                                # Only count if there are active streams on this connection
+                                if m3u_profile_id and int(active_streams) > 0:
+                                    try:
+                                        profile_id = int(m3u_profile_id)
+                                        actual_profile_connections[profile_id] = actual_profile_connections.get(profile_id, 0) + 1
+                                    except (ValueError, TypeError):
+                                        pass
+                        except Exception as e:
+                            logger.debug(f"Error processing VOD connection key for profile counting: {e}")
+                except Exception as e:
+                    logger.debug(f"Error calculating VOD profile connections: {e}")
                 
                 for profile in M3UAccountProfile.objects.all():
                     try:
@@ -322,7 +355,7 @@ class PrometheusMetricsCollector:
                         if profile.m3u_account.name.lower() == 'custom':
                             continue
                         
-                        # Use calculated connections instead of Redis counter (which doesn't update during fallback)
+                        # Use calculated connections (includes both live channels and VOD)
                         current_connections = actual_profile_connections.get(profile.id, 0)
                         max_connections = profile.max_streams
                         
@@ -1102,29 +1135,41 @@ class PrometheusMetricsCollector:
         metrics = []
         metrics.append("# HELP dispatcharr_vod_sessions Total number of VOD sessions")
         metrics.append("# TYPE dispatcharr_vod_sessions gauge")
-        metrics.append("# HELP dispatcharr_vod_active_streams Total number of active VOD streams")
+        metrics.append("# HELP dispatcharr_vod_active_streams Number of VOD sessions with active streams")
         metrics.append("# TYPE dispatcharr_vod_active_streams gauge")
         
         try:
             if self.redis_client:
-                # Count VOD sessions
+                # Count VOD persistent connections (modern Redis-backed architecture)
                 vod_sessions = 0
                 active_vod_streams = 0
                 
-                pattern = "vod_session:*"
+                # Scan for persistent connection keys (consolidated session data)
+                pattern = "vod_persistent_connection:*"
                 try:
                     for key in self.redis_client.scan_iter(match=pattern):
                         vod_sessions += 1
-                        # Try to get active streams count from session data
+                        # Check if connection has active streams
                         try:
-                            session_data = self.redis_client.hgetall(key)
-                            if session_data:
-                                active_streams = int(session_data.get(b'active_streams', 0))
-                                active_vod_streams += active_streams
+                            connection_data = self.redis_client.hgetall(key)
+                            if connection_data:
+                                # Handle both bytes and string keys
+                                if isinstance(list(connection_data.keys())[0], bytes):
+                                    active_streams_val = connection_data.get(b'active_streams', b'0')
+                                    if isinstance(active_streams_val, bytes):
+                                        active_streams_val = active_streams_val.decode('utf-8')
+                                else:
+                                    active_streams_val = connection_data.get('active_streams', '0')
+                                
+                                active_streams = int(active_streams_val)
+                                # Count 1 per connection that has at least one active stream
+                                # (consistent with profile connection counting)
+                                if active_streams > 0:
+                                    active_vod_streams += 1
                         except Exception as e:
-                            logger.debug(f"Error reading session data for {key}: {e}")
+                            logger.debug(f"Error reading connection data for {key}: {e}")
                 except Exception as e:
-                    logger.debug(f"Error scanning VOD session keys: {e}")
+                    logger.debug(f"Error scanning VOD persistent connection keys: {e}")
                 
                 metrics.append(f"dispatcharr_vod_sessions {vod_sessions}")
                 metrics.append(f"dispatcharr_vod_active_streams {active_vod_streams}")
