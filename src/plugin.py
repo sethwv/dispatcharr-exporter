@@ -43,7 +43,7 @@ def _load_plugin_config():
         logger.warning(f"Could not load plugin.json, using fallback config: {e}")
         # Fallback configuration if JSON can't be loaded
         return {
-            "version": "-dev-c24d047d-20260216144943",
+            "version": "-dev-aa27a092-20260301083233",
             "name": "Dispatcharr Exporter",
             "author": "SethWV",
             "description": "Expose Dispatcharr metrics in Prometheus exporter-compatible format for monitoring",
@@ -470,6 +470,8 @@ class PrometheusMetricsCollector:
         metrics.append("# TYPE dispatcharr_stream_total_transfer_mb counter")
         metrics.append("# HELP dispatcharr_stream_fps Stream frames per second")
         metrics.append("# TYPE dispatcharr_stream_fps gauge")
+        metrics.append("# HELP dispatcharr_stream_buffering_speed Stream buffering speed multiplier (e.g., 1.0 = realtime, 2.0 = 2x speed)")
+        metrics.append("# TYPE dispatcharr_stream_buffering_speed gauge")
         metrics.append("# HELP dispatcharr_stream_profile_connections Current connections for the M3U profile used by this stream")
         metrics.append("# TYPE dispatcharr_stream_profile_connections gauge")
         metrics.append("# HELP dispatcharr_stream_profile_max_connections Maximum connections allowed for the M3U profile")
@@ -564,6 +566,7 @@ class PrometheusMetricsCollector:
                                     source_fps = get_metadata(ChannelMetadataField.SOURCE_FPS, '0')
                                     video_bitrate = get_metadata(ChannelMetadataField.VIDEO_BITRATE, '0')
                                     ffmpeg_output_bitrate = get_metadata(ChannelMetadataField.FFMPEG_OUTPUT_BITRATE, '0')
+                                    ffmpeg_speed = get_metadata(ChannelMetadataField.FFMPEG_SPEED, '0')
                                     
                                     # Get total transfer
                                     total_bytes = int(get_metadata(ChannelMetadataField.TOTAL_BYTES, '0'))
@@ -721,6 +724,18 @@ class PrometheusMetricsCollector:
                                             stream_value_metrics.append(
                                                 f'dispatcharr_stream_fps{{{base_labels_str}}} {source_fps}'
                                             )
+                                        
+                                        # Buffering speed (parse value like "1.0x" to float)
+                                        if ffmpeg_speed and ffmpeg_speed != '0':
+                                            try:
+                                                # Remove 'x' suffix and convert to float
+                                                speed_value = float(ffmpeg_speed.rstrip('x'))
+                                                stream_value_metrics.append(
+                                                    f'dispatcharr_stream_buffering_speed{{{base_labels_str}}} {speed_value}'
+                                                )
+                                            except (ValueError, AttributeError):
+                                                pass
+                                        
                                         if video_bitrate and video_bitrate != '0':
                                             video_bitrate_bps = float(video_bitrate) * 1000  # Convert kbps to bps
                                             stream_value_metrics.append(

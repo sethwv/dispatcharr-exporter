@@ -301,6 +301,21 @@ dispatcharr_stream_active_clients{type="vod",channel_uuid="vod_1771265648474_714
 dispatcharr_stream_fps{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 59.94
 ```
 
+#### `dispatcharr_stream_buffering_speed`
+**Type:** gauge  
+**Value:** Speed multiplier (e.g., 1.0 for realtime, 2.0 for 2x speed)  
+**Labels:**
+- `type` - Stream type ("live" or "vod")
+- `channel_uuid` - Channel UUID
+- `channel_number` - Channel number
+
+**Description:** Stream buffering speed multiplier indicating how fast the stream is being processed relative to real-time. Available for live channels only (VOD streams do not report this metric). Values like 1.0 indicate realtime processing, values greater than 1.0 indicate the stream is buffering faster than realtime (good), and values less than 1.0 indicate the stream is falling behind (potential buffering issues).
+
+**Example:**
+```
+dispatcharr_stream_buffering_speed{type="live",channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 1.02
+```
+
 #### `dispatcharr_stream_video_bitrate_bps`
 **Type:** gauge  
 **Value:** Bitrate in bits per second  
