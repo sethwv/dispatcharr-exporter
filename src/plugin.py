@@ -17,7 +17,6 @@ import logging
 import os
 import threading
 import time
-from typing import Dict, Any
 from core.utils import RedisClient
 from apps.proxy.ts_proxy.constants import ChannelMetadataField
 
@@ -43,7 +42,7 @@ def _load_plugin_config():
         logger.warning(f"Could not load plugin.json, using fallback config: {e}")
         # Fallback configuration if JSON can't be loaded
         return {
-            "version": "-dev-aa27a092-20260301083233",
+            "version": "-dev-52e4c719-20260320115415",
             "name": "Dispatcharr Exporter",
             "author": "SethWV",
             "description": "Expose Dispatcharr metrics in Prometheus exporter-compatible format for monitoring",
@@ -306,9 +305,9 @@ class PrometheusMetricsCollector:
                                         profile_id = int(m3u_profile_id)
                                         actual_profile_connections[profile_id] = actual_profile_connections.get(profile_id, 0) + 1
                                     except (ValueError, TypeError):
-                                        pass
+                                        pass  # Invalid profile ID format
                             except Channel.DoesNotExist:
-                                pass
+                                pass  # Channel deleted or not found
                         except Exception as e:
                             logger.debug(f"Error processing stream key for profile counting: {e}")
                 except Exception as e:
@@ -339,7 +338,7 @@ class PrometheusMetricsCollector:
                                         profile_id = int(m3u_profile_id)
                                         actual_profile_connections[profile_id] = actual_profile_connections.get(profile_id, 0) + 1
                                     except (ValueError, TypeError):
-                                        pass
+                                        pass  # Invalid profile ID format
                         except Exception as e:
                             logger.debug(f"Error processing VOD connection key for profile counting: {e}")
                 except Exception as e:
@@ -597,9 +596,9 @@ class PrometheusMetricsCollector:
                                                     else:
                                                         current_bitrate_bps += current_rate_kb * 8000  # KB/s to bps
                                             except Exception:
-                                                pass
+                                                pass  # Invalid rate format
                                     except Exception:
-                                        pass
+                                        pass  # Missing or invalid client metadata
                                     
                                     # Get state
                                     state = get_metadata(ChannelMetadataField.STATE, 'unknown')
@@ -618,7 +617,7 @@ class PrometheusMetricsCollector:
                                             channel_stream = ChannelStream.objects.get(channel_id=channel.id, stream_id=stream_id)
                                             stream_index = channel_stream.order
                                         except Exception:
-                                            pass
+                                            pass  # ChannelStream relation not found
                                         
                                         # Get profile information from the stream's M3U account
                                         profile_id = None
@@ -734,7 +733,7 @@ class PrometheusMetricsCollector:
                                                     f'dispatcharr_stream_buffering_speed{{{base_labels_str}}} {speed_value}'
                                                 )
                                             except (ValueError, AttributeError):
-                                                pass
+                                                pass  # Invalid speed format
                                         
                                         if video_bitrate and video_bitrate != '0':
                                             video_bitrate_bps = float(video_bitrate) * 1000  # Convert kbps to bps
@@ -973,7 +972,6 @@ class PrometheusMetricsCollector:
                                     prog_title = content_obj.name  # Use raw name, will escape later
                                     prog_description = content_obj.description or ""
                                     prog_year = str(content_obj.year) if content_obj.year else ""
-                                    prog_rating = content_obj.rating or ""
                                     prog_genre = content_obj.genre or ""
                                     prog_duration_secs = content_obj.duration_secs or 0
                                     
@@ -1005,7 +1003,7 @@ class PrometheusMetricsCollector:
                                             if relation and relation.category:
                                                 channel_group = relation.category.name.replace('"', '\\"').replace('\\', '\\\\')
                                         except Exception:
-                                            pass
+                                            pass  # M3U relation not found or invalid profile ID
                                 
                                 elif content_type == 'episode':
                                     from apps.vod.models import M3USeriesRelation
@@ -1041,9 +1039,7 @@ class PrometheusMetricsCollector:
                                     # Get programming information from Episode model
                                     prog_title = content_obj.series.name if content_obj.series else ""  # Series name as title
                                     prog_description = content_obj.description or ""
-                                    prog_rating = content_obj.rating or ""
                                     prog_duration_secs = content_obj.duration_secs or 0
-                                    prog_air_date = content_obj.air_date.isoformat() if content_obj.air_date else ""
                                     
                                     # Build subtitle: Remove series name prefix from episode name to avoid duplication
                                     # Episode.name often contains "Series Name - S01E03 - Episode Title" or 
@@ -1069,8 +1065,6 @@ class PrometheusMetricsCollector:
                                         prog_subtitle = prog_subtitle[len(series_name_no_year):].lstrip(' -')
                                     
                                     # Log for debugging
-                                    season_str = f"S{season_number:02d}" if season_number else "S00"
-                                    episode_str = f"E{episode_number:02d}" if episode_number else "E00"
                                     logger.debug(f"VOD Episode programming: title='{prog_title}', subtitle='{prog_subtitle}', duration={prog_duration_secs}")
                                     
                                     # Get category from series M3U relation (use provider from session if available)
@@ -1083,7 +1077,7 @@ class PrometheusMetricsCollector:
                                             if relation and relation.category:
                                                 channel_group = relation.category.name.replace('"', '\\"').replace('\\', '\\\\')
                                         except Exception:
-                                            pass
+                                            pass  # M3U relation not found or invalid profile ID
                             except (Movie.DoesNotExist, Episode.DoesNotExist):
                                 logger.debug(f"VOD content {content_type} {content_uuid} not found in database")
                             except Exception as e:
@@ -1428,7 +1422,6 @@ class PrometheusMetricsCollector:
                         # Get channel details
                         try:
                             channel = Channel.objects.get(uuid=channel_uuid)
-                            channel_name = channel.name.replace('"', '\\"').replace('\\', '\\\\')
                             channel_number = getattr(channel, 'channel_number', 'N/A')
                         except Channel.DoesNotExist:
                             continue
@@ -1495,7 +1488,7 @@ class PrometheusMetricsCollector:
                                         # Likely KB/s: convert to bps
                                         avg_rate_bps = avg_rate_value * 8000
                                 except (ValueError, TypeError):
-                                    pass
+                                    pass  # Invalid rate value
                                 
                                 current_rate_bps = 0.0
                                 current_rate_str = get_client_field('current_rate_KBps', '0')
@@ -1511,7 +1504,7 @@ class PrometheusMetricsCollector:
                                         # Likely KB/s: convert to bps
                                         current_rate_bps = current_rate_value * 8000
                                 except (ValueError, TypeError):
-                                    pass
+                                    pass  # Invalid rate value
                                 
                                 # Minimal labels for joining
                                 base_labels = [
@@ -1738,7 +1731,7 @@ class MetricsServer:
                     if timestamp_match:
                         dispatcharr_timestamp = timestamp_match.group(1)
             except Exception:
-                pass
+                pass  # Failed to read or parse version file
 
         # Format version with timestamp if available (dev builds)
         full_version = dispatcharr_version
@@ -2007,7 +2000,7 @@ class MetricsServer:
                     
                     # Start the server in a separate greenlet so we can monitor for stop signals
                     from gevent import spawn, sleep
-                    server_greenlet = spawn(self.server.serve_forever)
+                    spawn(self.server.serve_forever)
                     
                     # Monitor for stop signal via Redis
                     while self.running:
@@ -2269,9 +2262,9 @@ class Plugin:
                                 if stat_info.st_uid == 0:
                                     root_owned.append(pycache_path)
                             except (OSError, PermissionError):
-                                pass
+                                pass  # Cannot access pycache directory
                 except (OSError, PermissionError):
-                    pass
+                    pass  # Cannot list plugin directory
                 
                 if root_owned:
                     logger.warning(
@@ -2335,9 +2328,6 @@ class Plugin:
             logger.debug("Prometheus exporter: Auto-start already attempted in this process, skipping")
             return
         
-        # Mark as attempted immediately to prevent re-entry during plugin re-discovery
-        _auto_start_attempted = True
-        
         logger.debug("Prometheus exporter: Initializing plugin and starting auto-start thread")
         
         def delayed_auto_start():
@@ -2354,14 +2344,15 @@ class Plugin:
             logger.debug("Prometheus exporter: Auto-start thread started, attempting to acquire lock")
             
             # Try to acquire lock - only ONE worker across all processes should succeed
+            # Note: lock_fd must stay open to maintain the lock throughout server lifetime
+            lock_fd = None
             try:
-                # Create lock file with open permissions so it can be accessed by all workers
+                # Create lock file - readable/writable by owner and group only
                 lock_fd = open(lock_file, 'w')
                 try:
-                    os.chmod(lock_file, 0o666)  # Make it readable/writable by all
+                    os.chmod(lock_file, 0o644)  # Security: Not world-writable (was 0o666)
                 except OSError:
-                    # chmod might fail if we don't own the file, that's okay
-                    pass
+                    pass  # chmod might fail if we don't own the file
                 fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
                 
                 logger.debug("Prometheus exporter: Lock acquired, checking config for auto-start")
@@ -2430,6 +2421,8 @@ class Plugin:
                             try:
                                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                                 sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                                # Bind to all interfaces (0.0.0.0) for Docker compatibility
+                                # Security: Ensure firewall rules are in place for production
                                 sock.bind((host, port))
                                 sock.close()
                             except OSError:
@@ -2462,14 +2455,21 @@ class Plugin:
                         continue  # Try next attempt
                 
                 # Release lock if we somehow get here
-                fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
-                lock_fd.close()
+                if lock_fd:
+                    fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
+                    lock_fd.close()
                 
             except BlockingIOError:
                 # Another worker already has the lock and is handling auto-start
                 logger.debug("Prometheus exporter: Auto-start already being handled by another worker")
             except Exception as e:
                 logger.warning(f"Prometheus exporter: Auto-start lock acquisition failed: {e}")
+                if lock_fd:
+                    try:
+                        fcntl.flock(lock_fd.fileno(), fcntl.LOCK_UN)
+                        lock_fd.close()
+                    except Exception:
+                        pass  # Best effort cleanup
         
         # Start in daemon thread - only the worker that gets the lock will actually start the server
         import threading
@@ -2565,12 +2565,9 @@ class Plugin:
 
         elif action == "stop_server":
             try:
-                stopped_local = False
-                
                 # Try to stop local instance first
                 if _metrics_server and _metrics_server.is_running():
                     if _metrics_server.stop():
-                        stopped_local = True
                         return {
                             "status": "success",
                             "message": "Metrics server stopped successfully"
@@ -2625,8 +2622,7 @@ class Plugin:
                 
                 # Try to stop local instance first
                 if _metrics_server and _metrics_server.is_running():
-                    if _metrics_server.stop():
-                        stopped_local = True
+                    _metrics_server.stop()
                 
                 # Always clear Redis flags and signal stop
                 if redis_client:
@@ -2770,7 +2766,7 @@ class Plugin:
                                 latest_version
                             )
                     except Exception:
-                        pass
+                        pass  # Failed to cache update info in Redis
                     
                     return {
                         "status": "warning",
