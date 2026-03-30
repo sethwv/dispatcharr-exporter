@@ -1,6 +1,6 @@
 {
   "name": "Dispatcharr Exporter",
-  "version": "-dev-aa27a092-20260301083233",
+  "version": "-dev-d897b533-20260330122958",
   "description": "Expose Dispatcharr metrics in Prometheus exporter-compatible format for monitoring",
   "license": "MIT",
   "discord_thread": "https://discord.com/channels/1340492560220684331/1451260201775923421",
