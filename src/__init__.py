@@ -66,14 +66,6 @@ class Plugin:
             "button_variant": "secondary",
             "button_color": "blue",
         },
-        {
-            "id": "check_for_updates",
-            "label": "Check for Updates",
-            "description": "Check if a new version is available",
-            "button_label": "Check Updates",
-            "button_variant": "secondary",
-            "button_color": "gray",
-        },
     ]
 
     # ── Initialisation ───────────────────────────────────────────────────────
@@ -115,36 +107,6 @@ class Plugin:
                     )
         except Exception as e:
             logger.debug(f"Could not check for root-owned __pycache__: {e}")
-
-    def _check_github_for_updates(self) -> dict:
-        """Query the GitHub releases API for the latest version."""
-        import requests
-
-        current_version = PLUGIN_CONFIG["version"].lstrip("-").lstrip("v")
-
-        if "dev" in current_version:
-            return {"is_dev": True, "current": current_version}
-
-        repo_url = PLUGIN_CONFIG.get("repo_url", "https://github.com/sethwv/dispatcharr-exporter")
-        api_url = f"{repo_url.replace('github.com', 'api.github.com/repos')}/releases/latest"
-
-        response = requests.get(
-            api_url,
-            timeout=5,
-            headers={"Accept": "application/vnd.github.v3+json"},
-        )
-        if not response.ok:
-            return {"error": f"HTTP {response.status_code}"}
-
-        data = response.json()
-        latest_version = data.get("tag_name", "").lstrip("v")
-
-        return {
-            "current": current_version,
-            "latest": latest_version,
-            "update_available": latest_version != current_version,
-            "repo_url": repo_url,
-        }
 
     def _get_redis_server_state(self):
         """Return (redis_client, server_running, server_host, server_port)."""
@@ -332,48 +294,6 @@ class Plugin:
             except Exception as e:
                 logger_ctx.error(f"Error checking server status: {e}", exc_info=True)
                 return {"status": "error", "message": f"Failed to check status: {str(e)}"}
-
-        # ── check_for_updates ────────────────────────────────────────────────
-        elif action == "check_for_updates":
-            try:
-                result = self._check_github_for_updates()
-
-                if result.get("is_dev"):
-                    return {
-                        "status": "success",
-                        "message": f"Running development version ({result['current']}). Update checks are disabled for dev builds.",
-                    }
-                if "error" in result:
-                    return {"status": "error", "message": f"Failed to check for updates ({result['error']})"}
-
-                current_version = result["current"]
-                latest_version  = result["latest"]
-                repo_url        = result["repo_url"]
-
-                if result["update_available"]:
-                    try:
-                        if redis_client:
-                            redis_client.setex(
-                                "prometheus_exporter:update_available",
-                                60 * 60 * 24,
-                                latest_version,
-                            )
-                    except Exception:
-                        pass
-                    return {
-                        "status": "warning",
-                        "message": f"Update available! Current: {current_version}, Latest: {latest_version}",
-                        "download_url": f"{repo_url}/releases/latest",
-                        "note": f"Download from: {repo_url}/releases/latest",
-                    }
-                return {
-                    "status": "success",
-                    "message": f"You are running the latest version ({current_version})",
-                }
-
-            except Exception as e:
-                logger_ctx.error(f"Error checking for updates: {e}", exc_info=True)
-                return {"status": "error", "message": f"Failed to check for updates: {str(e)}"}
 
         return {"status": "error", "message": f"Unknown action: {action}"}
 

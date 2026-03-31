@@ -48,8 +48,6 @@ CLEANUP_REDIS_KEYS = [
     REDIS_KEY_STOP,
     # Historical keys that may exist from older plugin versions
     "prometheus_exporter:autostart_completed",
-    "prometheus_exporter:update_available",
-    "prometheus_exporter:last_update_notification",
 ]
 
 # Complete set of every key ever written by this plugin
@@ -142,18 +140,5 @@ PLUGIN_FIELDS = [
         "type": "boolean",
         "default": False,
         "description": "Include user account metrics (user info, stream limits, active stream counts).",
-    },
-    {
-        "id": "include_legacy_metrics",
-        "label": "Include Legacy Metric Formats (Deprecated)",
-        "type": "boolean",
-        "default": False,
-        "description": (
-            "Include backward-compatible metrics with dynamic values as labels "
-            "(e.g., dispatcharr_stream_info with all stats as labels). This format "
-            "was used in v1.1.0 and earlier. NOT recommended - use the new separate "
-            "gauge metrics instead for proper time series. Only enable if you have "
-            "existing dashboards that need migration time"
-        ),
     },
 ]

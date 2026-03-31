@@ -130,12 +130,6 @@ class PrometheusMetricsCollector:
                 count = all_accounts.filter(status=status_value).count()
                 metrics.append(f'dispatcharr_m3u_account_status{{status="{status_value}"}} {count}')
 
-            include_legacy = settings and settings.get('include_legacy_metrics', False)
-
-            if include_legacy:
-                metrics.append("# HELP dispatcharr_m3u_account_info Information about each M3U account (legacy format with stream_count as label)")
-                metrics.append("# TYPE dispatcharr_m3u_account_info gauge")
-
             metrics.append("# HELP dispatcharr_m3u_account_stream_count Number of streams configured for this M3U account")
             metrics.append("# TYPE dispatcharr_m3u_account_stream_count gauge")
 
@@ -153,17 +147,13 @@ class PrometheusMetricsCollector:
                     f'status="{status}"',
                     f'is_active="{is_active}"',
                 ]
-                legacy_labels = base_labels.copy()
-                legacy_labels.append(f'stream_count="{stream_count}"')
 
                 if include_urls and account_type == 'XC' and hasattr(account, 'username') and account.username:
                     username = account.username.replace('"', '\\"').replace('\\', '\\\\')
-                    legacy_labels.append(f'username="{username}"')
                     base_labels.append(f'username="{username}"')
 
                 if include_urls and account.server_url:
                     server_url = account.server_url.replace('"', '\\"').replace('\\', '\\\\')
-                    legacy_labels.append(f'server_url="{server_url}"')
                     base_labels.append(f'server_url="{server_url}"')
 
                 metrics.append(f'dispatcharr_m3u_account_info{{{",".join(base_labels)}}} 1')
@@ -345,11 +335,6 @@ class PrometheusMetricsCollector:
         metrics.append("# HELP dispatcharr_active_streams Total number of active streams (live and VOD)")
         metrics.append("# TYPE dispatcharr_active_streams gauge")
 
-        include_legacy = settings and settings.get('include_legacy_metrics', False)
-        if include_legacy:
-            metrics.append("# HELP dispatcharr_stream_info Detailed information about active streams (legacy format with all values as labels)")
-            metrics.append("# TYPE dispatcharr_stream_info gauge")
-
         metrics.append("# HELP dispatcharr_stream_channel_number Channel number for active stream (live only)")
         metrics.append("# TYPE dispatcharr_stream_channel_number gauge")
         metrics.append("# HELP dispatcharr_stream_id Active stream ID for channel or session ID for VOD")
@@ -390,7 +375,6 @@ class PrometheusMetricsCollector:
                 active_streams = 0
                 active_live_streams = 0
                 active_vod_streams = 0
-                stream_info_metrics = []
                 stream_value_metrics = []
 
                 # ── Live channel streams ─────────────────────────────────────
@@ -564,22 +548,6 @@ class PrometheusMetricsCollector:
                                         stream_value_metrics.append(f'dispatcharr_stream_available_streams{{{base_labels_str}}} {channel.streams.count()}')
                                         stream_value_metrics.append(f'dispatcharr_stream_channel_number{{{base_labels_str}}} {channel_number_value}')
                                         stream_value_metrics.append(f'dispatcharr_stream_id{{{base_labels_str}}} {stream_id}')
-
-                                        legacy_labels = metadata_labels + [
-                                            f'profile_connections="{profile_connections}"',
-                                            f'profile_max_connections="{profile_max}"',
-                                            f'fps="{source_fps}"',
-                                            f'video_bitrate_bps="{float(video_bitrate) * 1000 if video_bitrate and video_bitrate != "0" else 0}"',
-                                            f'transcode_bitrate_bps="{float(ffmpeg_output_bitrate) * 1000 if ffmpeg_output_bitrate and ffmpeg_output_bitrate != "0" else 0}"',
-                                            f'avg_bitrate_bps="{avg_bitrate_bps}"',
-                                            f'current_bitrate_bps="{current_bitrate_bps}"',
-                                            f'total_transfer_mb="{total_mb}"',
-                                            f'uptime_seconds="{uptime_seconds}"',
-                                            f'active_clients="{active_clients}"',
-                                        ]
-
-                                        if include_legacy:
-                                            stream_info_metrics.append(f'dispatcharr_stream_info{{{",".join(legacy_labels)}}} 1')
 
                                         stream_value_metrics.append(f'dispatcharr_stream_uptime_seconds{{{base_labels_str}}} {uptime_seconds}')
                                         stream_value_metrics.append(f'dispatcharr_stream_active_clients{{{base_labels_str}}} {active_clients}')
@@ -973,8 +941,6 @@ class PrometheusMetricsCollector:
                 metrics.append(f"dispatcharr_active_streams {active_streams}")
                 metrics.append(f'dispatcharr_active_streams{{type="live"}} {active_live_streams}')
                 metrics.append(f'dispatcharr_active_streams{{type="vod"}} {active_vod_streams}')
-                for metric in stream_info_metrics:
-                    metrics.append(metric)
                 for metric in stream_value_metrics:
                     metrics.append(metric)
 
@@ -1009,11 +975,6 @@ class PrometheusMetricsCollector:
                 count = EPGSource.objects.filter(status=status_value).exclude(source_type='dummy').count()
                 metrics.append(f'dispatcharr_epg_source_status{{status="{status_value}"}} {count}')
 
-            include_legacy = settings and settings.get('include_legacy_metrics', False)
-            if include_legacy:
-                metrics.append("# HELP dispatcharr_epg_source_info Information about each EPG source (legacy format with priority as label)")
-                metrics.append("# TYPE dispatcharr_epg_source_info gauge")
-
             metrics.append("# HELP dispatcharr_epg_source_priority Priority value for EPG source (lower is higher priority)")
             metrics.append("# TYPE dispatcharr_epg_source_priority gauge")
 
@@ -1031,16 +992,10 @@ class PrometheusMetricsCollector:
                     f'status="{status}"',
                     f'is_active="{is_active}"',
                 ]
-                legacy_labels = base_labels.copy()
-                legacy_labels.append(f'priority="{priority}"')
-
                 if include_urls and source.url:
                     source_url = source.url.replace('"', '\\"').replace('\\', '\\\\')
-                    legacy_labels.append(f'url="{source_url}"')
                     base_labels.append(f'url="{source_url}"')
 
-                if include_legacy:
-                    metrics.append(f'dispatcharr_epg_source_info{{{",".join(legacy_labels)}}} 1')
                 metrics.append(f'dispatcharr_epg_source_priority{{{",".join(base_labels)}}} {priority}')
 
         except Exception as e:

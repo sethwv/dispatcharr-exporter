@@ -13,7 +13,6 @@ Complete reference for all metrics exposed by the Dispatcharr Prometheus Exporte
 - [Profile Metrics](#profile-metrics)
 - [Client Connection Metrics](#client-connection-metrics)
 - [User Metrics](#user-metrics)
-- [Legacy Metrics](#legacy-metrics)
 
 ---
 
@@ -55,7 +54,6 @@ dispatcharr_exporter_info{version="1.2.0"} 1
 **Labels:** All plugin settings as labels (for debugging/support)
 - `auto_start` - Auto-start enabled (true/false)
 - `suppress_access_logs` - Access log suppression (true/false)
-- `disable_update_notifications` - Update notifications disabled (true/false)
 - `port` - Metrics server port
 - `host` - Metrics server host
 - `base_url` - Dispatcharr base URL
@@ -64,13 +62,12 @@ dispatcharr_exporter_info{version="1.2.0"} 1
 - `include_client_stats` - Client stats included (true/false)
 - `include_source_urls` - Source URLs included (true/false)
 - `include_user_stats` - User stats included (true/false)
-- `include_legacy_metrics` - Legacy metrics included (true/false)
 
 **Description:** Info metric showing all exporter configuration settings.
 
 **Example:**
 ```
-dispatcharr_exporter_settings_info{auto_start="true",suppress_access_logs="true",disable_update_notifications="false",port="9192",host="0.0.0.0",base_url="",include_m3u_stats="true",include_epg_stats="false",include_client_stats="false",include_source_urls="false",include_user_stats="false",include_legacy_metrics="false"} 1
+dispatcharr_exporter_settings_info{auto_start="true",suppress_access_logs="true",port="9192",host="0.0.0.0",base_url="",include_m3u_stats="true",include_epg_stats="false",include_client_stats="false",include_source_urls="false",include_user_stats="false"} 1
 ```
 
 ### `dispatcharr_exporter_port`
@@ -957,44 +954,6 @@ dispatcharr_user_last_login_timestamp == 0
 (time() - dispatcharr_user_last_login_timestamp) / 86400 > 30
   and dispatcharr_user_last_login_timestamp > 0
 ```
-
----
-
-## Legacy Metrics
-
-*Deprecated metrics - disabled by default via `include_legacy_metrics` setting*
-
-**Warning:** These metrics are from v1.1.0 and earlier. They are NOT recommended as they create new time series whenever any value changes. Use the new layered metrics instead.
-
-### `dispatcharr_stream_info`
-**Type:** gauge  
-**Value:** Always 1  
-**Labels:** ALL stream information as labels (values and metadata mixed)
-
-**Description:** Legacy format with all stream statistics as labels. Creates high cardinality and new series on every value change.
-
-**Migration:** Use the new layered metrics:
-- Use `dispatcharr_stream_metadata` for static metadata
-- Use separate value metrics (`dispatcharr_stream_fps`, `dispatcharr_stream_uptime_seconds`, etc.) for dynamic values
-- Join metrics using `channel_uuid` and `channel_number`
-
-### `dispatcharr_m3u_account_info`
-**Type:** gauge  
-**Value:** Always 1  
-**Labels:** Account information with `stream_count` as a label
-
-**Description:** Legacy format with stream count as a label.
-
-**Migration:** Use `dispatcharr_m3u_account_stream_count` for the stream count as a proper gauge value.
-
-### `dispatcharr_epg_source_info`
-**Type:** gauge  
-**Value:** Always 1  
-**Labels:** EPG source information with `priority` as a label
-
-**Description:** Legacy format with priority as a label.
-
-**Migration:** Use `dispatcharr_epg_source_priority` for the priority as a proper gauge value.
 
 ---
 

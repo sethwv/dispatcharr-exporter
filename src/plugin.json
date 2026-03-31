@@ -1,11 +1,11 @@
 {
   "name": "Dispatcharr Exporter",
-  "version": "-dev-016b053f-20260331143618",
+  "version": "-dev-ac7da410-20260331170426",
   "description": "Expose Dispatcharr metrics in Prometheus exporter-compatible format for monitoring",
   "license": "MIT",
   "discord_thread": "https://discord.com/channels/1340492560220684331/1451260201775923421",
   "author": "sethwv",
   "help_url": "https://github.com/sethwv/dispatcharr-exporter",
-  "min_dispatcharr_version": "v0.19.0",
+  "min_dispatcharr_version": "v0.22.0",
   "repo_url": "https://github.com/sethwv/dispatcharr-exporter"
 }
