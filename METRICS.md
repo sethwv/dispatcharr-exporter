@@ -923,21 +923,6 @@ dispatcharr_user_active_streams{user_id="1",username="alice"} 1
 dispatcharr_user_active_streams{user_id="2",username="bob"} 2
 ```
 
-### `dispatcharr_user_last_login_timestamp`
-**Type:** gauge  
-**Value:** Unix timestamp of last login (0 if the user has never logged in)  
-**Labels:**
-- `user_id` - Dispatcharr user ID
-- `username` - Username
-
-**Description:** Unix timestamp of each user's last login. 0 if the user has never logged in.
-
-**Example:**
-```
-dispatcharr_user_last_login_timestamp{user_id="1",username="alice"} 1743400000
-dispatcharr_user_last_login_timestamp{user_id="2",username="bob"} 0
-```
-
 **Example queries:**
 ```promql
 # Stream usage ratio per user (requires stream_limit > 0)
@@ -946,13 +931,6 @@ dispatcharr_user_active_streams / dispatcharr_user_stream_limit > 0
 # Users at or over their stream limit
 dispatcharr_user_active_streams >= dispatcharr_user_stream_limit
   and dispatcharr_user_stream_limit > 0
-
-# Users who have never logged in
-dispatcharr_user_last_login_timestamp == 0
-
-# Users inactive for more than 30 days
-(time() - dispatcharr_user_last_login_timestamp) / 86400 > 30
-  and dispatcharr_user_last_login_timestamp > 0
 ```
 
 ---

@@ -1285,8 +1285,6 @@ class PrometheusMetricsCollector:
         metrics.append("# TYPE dispatcharr_user_stream_limit gauge")
         metrics.append("# HELP dispatcharr_user_active_streams Current number of active streams for user")
         metrics.append("# TYPE dispatcharr_user_active_streams gauge")
-        metrics.append("# HELP dispatcharr_user_last_login_timestamp Unix timestamp of user's last login (0 if never)")
-        metrics.append("# TYPE dispatcharr_user_last_login_timestamp gauge")
 
         # Count active streams per user_id from Redis
         active_streams_by_user = {}
@@ -1339,11 +1337,9 @@ class PrometheusMetricsCollector:
                     f'is_staff="{is_staff}",'
                     f'date_joined="{date_joined}"'
                 )
-                last_login_ts = int(user.last_login.timestamp()) if user.last_login else 0
                 metrics.append(f'dispatcharr_user_info{{{info_labels}}} 1')
                 metrics.append(f'dispatcharr_user_stream_limit{{user_id="{uid}",username="{username_safe}"}} {user.stream_limit}')
                 metrics.append(f'dispatcharr_user_active_streams{{user_id="{uid}",username="{username_safe}"}} {active_streams_by_user.get(uid, 0)}')
-                metrics.append(f'dispatcharr_user_last_login_timestamp{{user_id="{uid}",username="{username_safe}"}} {last_login_ts}')
 
         except Exception as e:
             logger.error(f"Error collecting user metrics: {e}", exc_info=True)
