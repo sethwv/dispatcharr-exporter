@@ -1363,6 +1363,9 @@ class PrometheusMetricsCollector:
 
         try:
             for user in User.objects.filter(is_active=True).order_by('id'):
+                # Skip users without an XC password — they are internal accounts only
+                if not (user.custom_properties or {}).get('xc_password'):
+                    continue
                 uid = user.id
                 username_safe = user.username.replace('\\', '\\\\').replace('"', '\\"')
                 user_level = user.user_level
