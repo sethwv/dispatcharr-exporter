@@ -39,17 +39,15 @@ if [ -z "$GITHUB_ACTIONS" ]; then
     
     echo "Version: $VERSION"
     
-    # Update version in plugin.py
+    # Update version in plugin.json
     if [[ "$OSTYPE" == "darwin"* ]]; then
-        sed -i '' "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" "$SRC_DIR/plugin.py"
         sed -i '' "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" "$SRC_DIR/plugin.json"
     else
-        sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" "$SRC_DIR/plugin.py"
         sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" "$SRC_DIR/plugin.json"
     fi
 else
-    # Extract version from plugin.py (set by workflow)
-    VERSION=$(grep -oP '"version": "\K[^"]+' "$SRC_DIR/plugin.py" 2>/dev/null || grep -o '"version": "[^"]*"' "$SRC_DIR/plugin.py" | cut -d'"' -f4)
+    # Extract version from plugin.json (set by workflow)
+    VERSION=$(grep -oP '"version": "\K[^"]+' "$SRC_DIR/plugin.json" 2>/dev/null || grep -o '"version": "[^"]*"' "$SRC_DIR/plugin.json" | cut -d'"' -f4)
     echo "Version: $VERSION"
 fi
 
