@@ -12,6 +12,7 @@ Complete reference for all metrics exposed by the Dispatcharr Prometheus Exporte
 - [Stream Metrics](#stream-metrics)
 - [Profile Metrics](#profile-metrics)
 - [Client Connection Metrics](#client-connection-metrics)
+- [User Metrics](#user-metrics)
 - [Legacy Metrics](#legacy-metrics)
 
 ---
@@ -62,13 +63,14 @@ dispatcharr_exporter_info{version="1.2.0"} 1
 - `include_epg_stats` - EPG stats included (true/false)
 - `include_client_stats` - Client stats included (true/false)
 - `include_source_urls` - Source URLs included (true/false)
+- `include_user_stats` - User stats included (true/false)
 - `include_legacy_metrics` - Legacy metrics included (true/false)
 
 **Description:** Info metric showing all exporter configuration settings.
 
 **Example:**
 ```
-dispatcharr_exporter_settings_info{auto_start="true",suppress_access_logs="true",disable_update_notifications="false",port="9192",host="0.0.0.0",base_url="",include_m3u_stats="true",include_epg_stats="false",include_client_stats="false",include_source_urls="false",include_legacy_metrics="false"} 1
+dispatcharr_exporter_settings_info{auto_start="true",suppress_access_logs="true",disable_update_notifications="false",port="9192",host="0.0.0.0",base_url="",include_m3u_stats="true",include_epg_stats="false",include_client_stats="false",include_source_urls="false",include_user_stats="false",include_legacy_metrics="false"} 1
 ```
 
 ### `dispatcharr_exporter_port`
@@ -866,6 +868,94 @@ dispatcharr_client_avg_transfer_rate_bps{type="vod",client_id="vod_1771265648474
 ```
 dispatcharr_client_current_transfer_rate_bps{type="live",client_id="client_1771267188580_6007",channel_uuid="8c9d9b93-b626-42ce-a82f-2509fd8e606d",channel_number="101.0"} 9025062.4
 dispatcharr_client_current_transfer_rate_bps{type="vod",client_id="vod_1771265648474_7145",channel_uuid="vod_1771265648474_7145",channel_number="1771265648474"} 21929353.84
+```
+
+---
+
+## User Metrics
+
+*Optional metrics - disabled by default via `include_user_stats` setting*
+
+**Note:** These metrics expose user account information. Only enable in trusted/private environments.
+
+### `dispatcharr_user_info`
+**Type:** gauge  
+**Value:** Always 1  
+**Labels:**
+- `user_id` - Dispatcharr user ID
+- `username` - Username
+- `user_level` - Role: `"streamer"` (0), `"standard"` (1), or `"admin"` (10+)
+- `is_staff` - Django staff flag (`"true"` / `"false"`)
+- `date_joined` - Unix timestamp when the account was created
+
+**Description:** Static metadata for each active Dispatcharr user. Use as an info metric for joins with other user metrics.
+
+**Example:**
+```
+dispatcharr_user_info{user_id="1",username="alice",user_level="admin",is_staff="true",date_joined="1700000000"} 1
+dispatcharr_user_info{user_id="2",username="bob",user_level="streamer",is_staff="false",date_joined="1710000000"} 1
+```
+
+### `dispatcharr_user_stream_limit`
+**Type:** gauge  
+**Value:** Configured concurrent stream limit (0 = unlimited)  
+**Labels:**
+- `user_id` - Dispatcharr user ID
+- `username` - Username
+
+**Description:** The maximum number of concurrent streams configured for each user. A value of `0` means no limit is enforced.
+
+**Example:**
+```
+dispatcharr_user_stream_limit{user_id="1",username="alice"} 0
+dispatcharr_user_stream_limit{user_id="2",username="bob"} 2
+```
+
+### `dispatcharr_user_active_streams`
+**Type:** gauge  
+**Value:** Current active stream count  
+**Labels:**
+- `user_id` - Dispatcharr user ID
+- `username` - Username
+
+**Description:** Number of streams currently active for each user, counting both live channel clients and active VOD sessions.
+
+**Example:**
+```
+dispatcharr_user_active_streams{user_id="1",username="alice"} 1
+dispatcharr_user_active_streams{user_id="2",username="bob"} 2
+```
+
+### `dispatcharr_user_last_login_timestamp`
+**Type:** gauge  
+**Value:** Unix timestamp of last login (0 if the user has never logged in)  
+**Labels:**
+- `user_id` - Dispatcharr user ID
+- `username` - Username
+
+**Description:** When each user last authenticated. Useful for detecting inactive accounts.
+
+**Example:**
+```
+dispatcharr_user_last_login_timestamp{user_id="1",username="alice"} 1743400000
+dispatcharr_user_last_login_timestamp{user_id="2",username="bob"} 0
+```
+
+**Useful PromQL patterns:**
+```promql
+# Stream usage ratio (0–1) per user — requires stream_limit > 0
+dispatcharr_user_active_streams / dispatcharr_user_stream_limit > 0
+
+# Users at or over their stream limit
+dispatcharr_user_active_streams >= dispatcharr_user_stream_limit
+  and dispatcharr_user_stream_limit > 0
+
+# Users who have never logged in
+dispatcharr_user_last_login_timestamp == 0
+
+# Users inactive for more than 30 days
+(time() - dispatcharr_user_last_login_timestamp) / 86400 > 30
+  and dispatcharr_user_last_login_timestamp > 0
 ```
 
 ---

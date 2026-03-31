@@ -137,6 +137,13 @@ PLUGIN_FIELDS = [
         ),
     },
     {
+        "id": "include_user_stats",
+        "label": "Include User Statistics",
+        "type": "boolean",
+        "default": False,
+        "description": "Include user account metrics (user info, stream limits, active stream counts).",
+    },
+    {
         "id": "include_legacy_metrics",
         "label": "Include Legacy Metric Formats (Deprecated)",
         "type": "boolean",

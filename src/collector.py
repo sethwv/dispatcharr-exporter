@@ -96,6 +96,10 @@ class PrometheusMetricsCollector:
         if settings and settings.get('include_client_stats', False):
             metrics.extend(self._collect_client_metrics())
 
+        # User metrics
+        if settings and settings.get('include_user_stats', False):
+            metrics.extend(self._collect_user_metrics())
+
         return "\n".join(metrics)
 
     # ── M3U Account metrics ──────────────────────────────────────────────────
@@ -1072,6 +1076,20 @@ class PrometheusMetricsCollector:
             total_clients = 0
             client_metrics = []
 
+            _user_cache = {}  # per-scrape cache: user_id int -> username str
+
+            def _resolve_username(user_id_str):
+                try:
+                    uid = int(user_id_str)
+                    if uid <= 0:
+                        return 'anonymous'
+                    if uid not in _user_cache:
+                        from apps.accounts.models import User
+                        _user_cache[uid] = User.objects.get(id=uid).username
+                    return _user_cache[uid]
+                except Exception:
+                    return 'anonymous'
+
             # Live clients
             while True:
                 cursor, keys = self.redis_client.scan(
@@ -1114,11 +1132,14 @@ class PrometheusMetricsCollector:
                                 ip_address = get_client_field('ip_address', 'unknown')
                                 user_agent = get_client_field('user_agent', 'unknown')
                                 worker_id = get_client_field('worker_id', 'unknown')
+                                user_id_str = get_client_field('user_id', '0')
+                                username = _resolve_username(user_id_str)
 
                                 ip_address_safe = ip_address.replace('"', '\\"').replace('\\', '\\\\')
                                 user_agent_safe = user_agent.replace('"', '\\"').replace('\\', '\\\\').replace('\n', ' ').replace('\r', '')
                                 client_id_safe = client_id.replace('"', '\\"').replace('\\', '\\\\')
                                 worker_id_safe = worker_id.replace('"', '\\"').replace('\\', '\\\\')
+                                username_safe = username.replace('"', '\\"').replace('\\', '\\\\')
 
                                 connection_duration = 0
                                 try:
@@ -1160,6 +1181,8 @@ class PrometheusMetricsCollector:
                                     f'ip_address="{ip_address_safe}"',
                                     f'user_agent="{user_agent_safe}"',
                                     f'worker_id="{worker_id_safe}"',
+                                    f'user_id="{user_id_str}"',
+                                    f'username="{username_safe}"',
                                 ]
                                 client_metrics.append(f'dispatcharr_client_info{{{",".join(info_labels)}}} 1')
 
@@ -1228,6 +1251,8 @@ class PrometheusMetricsCollector:
                             client_ip = get_vod_field('client_ip', 'unknown')
                             client_user_agent = get_vod_field('client_user_agent', 'unknown')
                             worker_id = get_vod_field('worker_id', 'unknown')
+                            user_id_str = get_vod_field('user_id', '0')
+                            username = _resolve_username(user_id_str)
 
                             session_id_safe = session_id.replace('"', '\\"').replace('\\', '\\\\')
                             vod_channel_number_safe = vod_channel_number.replace('"', '\\"').replace('\\', '\\\\')
@@ -1235,6 +1260,7 @@ class PrometheusMetricsCollector:
                             client_ip_safe = client_ip.replace('"', '\\"').replace('\\', '\\\\')
                             client_user_agent_safe = client_user_agent.replace('"', '\\"').replace('\\', '\\\\').replace('\n', ' ').replace('\r', '')
                             worker_id_safe = worker_id.replace('"', '\\"').replace('\\', '\\\\')
+                            username_safe = username.replace('"', '\\"').replace('\\', '\\\\')
 
                             connection_duration = 0
                             created_at = float(get_vod_field('created_at', '0'))
@@ -1262,6 +1288,8 @@ class PrometheusMetricsCollector:
                                 f'ip_address="{client_ip_safe}"',
                                 f'user_agent="{client_user_agent_safe}"',
                                 f'worker_id="{worker_id_safe}"',
+                                f'user_id="{user_id_str}"',
+                                f'username="{username_safe}"',
                             ]
                             client_metrics.append(f'dispatcharr_client_info{{{",".join(info_labels)}}} 1')
 
@@ -1287,6 +1315,80 @@ class PrometheusMetricsCollector:
 
         except Exception as e:
             logger.error(f"Error collecting client metrics: {e}")
+
+        metrics.append("")
+        return metrics
+
+    def _collect_user_metrics(self) -> list:
+        """Collect Dispatcharr user information, stream limits, and active stream counts."""
+        from apps.accounts.models import User
+
+        metrics = []
+        metrics.append("# HELP dispatcharr_user_info Dispatcharr user information")
+        metrics.append("# TYPE dispatcharr_user_info gauge")
+        metrics.append("# HELP dispatcharr_user_stream_limit Configured concurrent stream limit for user (0 = unlimited)")
+        metrics.append("# TYPE dispatcharr_user_stream_limit gauge")
+        metrics.append("# HELP dispatcharr_user_active_streams Current number of active streams for user")
+        metrics.append("# TYPE dispatcharr_user_active_streams gauge")
+        metrics.append("# HELP dispatcharr_user_last_login_timestamp Unix timestamp of user's last login (0 if never)")
+        metrics.append("# TYPE dispatcharr_user_last_login_timestamp gauge")
+
+        # Count active streams per user_id from Redis
+        active_streams_by_user = {}
+        try:
+            redis = RedisClient.get_client()
+            # Live client keys
+            for key in redis.scan_iter(match="ts_proxy:channel:*:clients:*", count=1000):
+                parts = key.split(':')
+                if len(parts) >= 5:
+                    uid_str = redis.hget(key, 'user_id')
+                    if uid_str:
+                        try:
+                            uid = int(uid_str)
+                            active_streams_by_user[uid] = active_streams_by_user.get(uid, 0) + 1
+                        except (ValueError, TypeError):
+                            pass
+            # VOD connection keys
+            for key in redis.scan_iter(match="vod_persistent_connection:*", count=1000):
+                uid_str = redis.hget(key, 'user_id')
+                active_str = redis.hget(key, 'active_streams')
+                try:
+                    if uid_str and int(active_str or 0) > 0:
+                        uid = int(uid_str)
+                        active_streams_by_user[uid] = active_streams_by_user.get(uid, 0) + 1
+                except (ValueError, TypeError):
+                    pass
+        except Exception as e:
+            logger.error(f"Error counting active streams per user: {e}", exc_info=True)
+
+        try:
+            for user in User.objects.filter(is_active=True).order_by('id'):
+                uid = user.id
+                username_safe = user.username.replace('\\', '\\\\').replace('"', '\\"')
+                user_level = user.user_level
+                user_level_name = (
+                    "admin" if user_level >= 10
+                    else "standard" if user_level >= 1
+                    else "streamer"
+                )
+                is_staff = "true" if user.is_staff else "false"
+                date_joined = int(user.date_joined.timestamp()) if user.date_joined else 0
+
+                info_labels = (
+                    f'user_id="{uid}",'
+                    f'username="{username_safe}",'
+                    f'user_level="{user_level_name}",'
+                    f'is_staff="{is_staff}",'
+                    f'date_joined="{date_joined}"'
+                )
+                last_login_ts = int(user.last_login.timestamp()) if user.last_login else 0
+                metrics.append(f'dispatcharr_user_info{{{info_labels}}} 1')
+                metrics.append(f'dispatcharr_user_stream_limit{{user_id="{uid}",username="{username_safe}"}} {user.stream_limit}')
+                metrics.append(f'dispatcharr_user_active_streams{{user_id="{uid}",username="{username_safe}"}} {active_streams_by_user.get(uid, 0)}')
+                metrics.append(f'dispatcharr_user_last_login_timestamp{{user_id="{uid}",username="{username_safe}"}} {last_login_ts}')
+
+        except Exception as e:
+            logger.error(f"Error collecting user metrics: {e}", exc_info=True)
 
         metrics.append("")
         return metrics
