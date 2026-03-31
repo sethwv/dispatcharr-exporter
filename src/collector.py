@@ -227,13 +227,10 @@ class PrometheusMetricsCollector:
                                 metadata = self.redis_client.hgetall(metadata_key) or {}
 
                                 def get_metadata(field, default=None):
-                                    val = metadata.get(
-                                        field.encode('utf-8') if isinstance(field, str) else field,
-                                        None,
-                                    )
+                                    val = metadata.get(field)
                                     if val is None:
                                         return default
-                                    return val.decode('utf-8') if isinstance(val, bytes) else default
+                                    return str(val)
 
                                 m3u_profile_id = get_metadata(ChannelMetadataField.M3U_PROFILE, None)
                                 if m3u_profile_id and m3u_profile_id != '0':
@@ -427,11 +424,10 @@ class PrometheusMetricsCollector:
                                     metadata = self.redis_client.hgetall(metadata_key) or {}
 
                                     def get_metadata(field, default="0"):
-                                        val = metadata.get(
-                                            field.encode('utf-8') if isinstance(field, str) else field,
-                                            b'0',
-                                        )
-                                        return val.decode('utf-8') if isinstance(val, bytes) else default
+                                        val = metadata.get(field)
+                                        if val is None:
+                                            return default
+                                        return str(val)
 
                                     active_stream_id_str = get_metadata(ChannelMetadataField.STREAM_ID, None)
                                     if active_stream_id_str and active_stream_id_str != '0':
@@ -452,6 +448,13 @@ class PrometheusMetricsCollector:
                                             stream_profile_name = profile.name.replace('"', '\\"').replace('\\', '\\\\')
                                         except Exception:
                                             stream_profile_name = f'Profile-{stream_profile_id}'
+                                    else:
+                                        try:
+                                            sp = channel.get_stream_profile()
+                                            if sp:
+                                                stream_profile_name = sp.name.replace('"', '\\"').replace('\\', '\\\\')
+                                        except Exception:
+                                            pass
 
                                     video_codec = get_metadata(ChannelMetadataField.VIDEO_CODEC, 'unknown')
                                     resolution = get_metadata(ChannelMetadataField.RESOLUTION, 'unknown')
@@ -475,8 +478,8 @@ class PrometheusMetricsCollector:
                                                 client_id = client_id_bytes.decode('utf-8') if isinstance(client_id_bytes, bytes) else client_id_bytes
                                                 client_key = f"ts_proxy:channel:{channel_uuid}:clients:{client_id}"
                                                 client_data = self.redis_client.hgetall(client_key)
-                                                if client_data and b'current_rate_KBps' in client_data:
-                                                    current_rate_kb = float(client_data[b'current_rate_KBps'].decode('utf-8'))
+                                                if client_data and 'current_rate_KBps' in client_data:
+                                                    current_rate_kb = float(client_data['current_rate_KBps'])
                                                     if current_rate_kb > 50000:
                                                         current_bitrate_bps += current_rate_kb * 8
                                                     else:
@@ -508,6 +511,13 @@ class PrometheusMetricsCollector:
                                         profile_max = 0
 
                                         m3u_profile_id = get_metadata(ChannelMetadataField.M3U_PROFILE, None)
+                                        if not m3u_profile_id or m3u_profile_id == '0':
+                                            try:
+                                                raw = self.redis_client.get(f"stream_profile:{stream_id}")
+                                                if raw:
+                                                    m3u_profile_id = raw.decode('utf-8') if isinstance(raw, bytes) else str(raw)
+                                            except Exception:
+                                                pass
                                         if m3u_profile_id and m3u_profile_id != '0':
                                             try:
                                                 profile_id = int(m3u_profile_id)
@@ -1096,11 +1106,10 @@ class PrometheusMetricsCollector:
                                     continue
 
                                 def get_client_field(field, default='unknown'):
-                                    val = client_data.get(
-                                        field.encode('utf-8') if isinstance(field, str) else field,
-                                        default.encode('utf-8'),
-                                    )
-                                    return val.decode('utf-8') if isinstance(val, bytes) else str(default)
+                                    val = client_data.get(field)
+                                    if val is None:
+                                        return default
+                                    return str(val)
 
                                 ip_address = get_client_field('ip_address', 'unknown')
                                 user_agent = get_client_field('user_agent', 'unknown')
@@ -1114,7 +1123,8 @@ class PrometheusMetricsCollector:
                                 connection_duration = 0
                                 try:
                                     connected_at = float(get_client_field('connected_at', '0'))
-                                    connection_duration = int(current_time - connected_at)
+                                    if connected_at > 0:
+                                        connection_duration = max(0, int(current_time - connected_at))
                                 except (ValueError, TypeError):
                                     pass
 
