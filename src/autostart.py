@@ -52,6 +52,21 @@ def attempt_autostart(collector) -> None:
             return
         _autostart_launched = True
 
+    # Redis-level dedup: survives module reloads (force_reload resets the
+    # module-level flag above).  The key is short-lived so it doesn't
+    # block a genuine cold start after a container restart.
+    try:
+        from .utils import get_redis_client
+        from .config import REDIS_KEY_LEADER
+        _rc = get_redis_client()
+        if _rc:
+            _dedup_key = REDIS_KEY_LEADER + ":autostart_dedup"
+            if not _rc.set(_dedup_key, "1", nx=True, ex=_STARTUP_WAIT + (_RETRY_DELAY * _MAX_ATTEMPTS) + 10):
+                logger.debug("Prometheus exporter: auto-start already in progress (Redis dedup), skipping")
+                return
+    except Exception:
+        pass  # if Redis isn't up yet, proceed normally
+
     threading.Thread(
         target=_autostart_worker,
         args=(collector,),
