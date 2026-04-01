@@ -51,7 +51,7 @@ def resolve_commit(repo, tag):
         if obj["type"] == "tag":
             # Annotated tag – dereference to the commit
             sha = gh("api", f"repos/{repo}/git/tags/{sha}", "--jq", ".object.sha")
-        return sha, sha[:7]
+        return sha, sha[:8]
     except Exception as exc:
         print(f"  Warning: could not resolve commit for {tag}: {exc}", flush=True)
         return None, None
