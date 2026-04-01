@@ -31,8 +31,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           HASH=$(git rev-parse --short=8 HEAD)
-          # Base on the GitHub "Latest release" version so Dispatcharr displays e.g. v3.0.0-dev-e82297bd
-          LATEST=$(gh release view latest --json tagName --jq '.tagName' 2>/dev/null || echo "")
+          # Base on latest stable release version so Dispatcharr displays e.g. v3.0.0-dev-e82297bd
+          LATEST=$(gh release list --exclude-pre-releases --limit 1 --json tagName --jq '.[0].tagName // ""')
           BASE="${LATEST#v}"  # strip leading v if present
           if [ -z "$BASE" ]; then
             BASE="0.0.0"
