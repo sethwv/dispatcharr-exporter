@@ -67,17 +67,26 @@ def fetch_zip(url):
         return None
 
 
-def min_ver_from_zip(data):
-    """Extract min_dispatcharr_version from plugin.json inside a zip."""
+def _plugin_json_from_zip(data):
+    """Return parsed plugin.json from inside a zip, or {}."""
     try:
         with zipfile.ZipFile(io.BytesIO(data)) as zf:
             matches = [n for n in zf.namelist() if n.endswith("plugin.json")]
             if matches:
-                pj = json.loads(zf.read(matches[0]))
-                return pj.get("min_dispatcharr_version")
+                return json.loads(zf.read(matches[0]))
     except Exception as exc:
         print(f"  Warning: could not read plugin.json from zip: {exc}", flush=True)
-    return None
+    return {}
+
+
+def min_ver_from_zip(data):
+    """Extract min_dispatcharr_version from plugin.json inside a zip."""
+    return _plugin_json_from_zip(data).get("min_dispatcharr_version")
+
+
+def version_from_zip(data):
+    """Extract version string from plugin.json inside a zip."""
+    return _plugin_json_from_zip(data).get("version")
 
 
 def main():
@@ -90,6 +99,8 @@ def main():
     plugin_json_path = config.get("plugin_json", "src/plugin.json")
     logo_path = config.get("logo", "src/logo.png")
     registry_name_override = config.get("registry_name")
+    dev_tag = config.get("dev_tag")
+    dev_tag_prefix = config.get("dev_tag_prefix")
 
     set_output("slug", SLUG)
     set_output("logo", logo_path)
@@ -150,13 +161,75 @@ def main():
         versions.append(entry)
         print(f"  -> ok  sha256={sha256[:16]}...", flush=True)
 
-    if not versions:
+    # Optionally include a dev build from a rolling pre-release
+    dev_entry = None
+    _dev_source = dev_tag or dev_tag_prefix
+    if _dev_source:
+        if dev_tag:
+            # Fixed tag name
+            print(f"\nLooking for dev pre-release '{dev_tag}'...", flush=True)
+            try:
+                candidates = [json.loads(gh("api", f"repos/{repo}/releases/tags/{dev_tag}"))]
+            except subprocess.CalledProcessError:
+                candidates = []
+        else:
+            # Find the latest pre-release whose tag starts with the prefix
+            print(f"\nSearching for dev pre-release with prefix '{dev_tag_prefix}'...", flush=True)
+            all_releases = json.loads(gh("api", "--paginate", f"repos/{repo}/releases"))
+            candidates = [
+                r for r in all_releases
+                if r.get("prerelease") and r["tag_name"].startswith(dev_tag_prefix)
+            ]
+            candidates.sort(key=lambda r: r["published_at"], reverse=True)
+
+        if not candidates:
+            print(f"  No matching dev pre-release found – skipping", flush=True)
+        else:
+            dev_rel = candidates[0]
+            if not dev_rel.get("prerelease"):
+                print(f"  Release '{dev_rel['tag_name']}' is not a pre-release – skipping", flush=True)
+            else:
+                dev_asset = next(
+                    (a for a in dev_rel["assets"] if a["name"].endswith(".zip")),
+                    None,
+                )
+                if not dev_asset:
+                    print(f"  No zip asset in dev release '{dev_rel['tag_name']}' – skipping", flush=True)
+                else:
+                    dev_url = dev_asset["browser_download_url"]
+                    print(f"  Found '{dev_rel['tag_name']}': {dev_url}", flush=True)
+                    dev_data = fetch_zip(dev_url)
+                    if dev_data:
+                        dev_sha256 = hashlib.sha256(dev_data).hexdigest()
+                        dev_ver_str = version_from_zip(dev_data) or dev_rel["tag_name"]
+                        dev_min_ver = min_ver_from_zip(dev_data)
+                        dev_commit_sha, dev_commit_short = resolve_commit(repo, dev_rel["tag_name"])
+                        dev_entry = {
+                            "version": dev_ver_str,
+                            "url": dev_url,
+                            "checksum_sha256": dev_sha256,
+                            "build_timestamp": dev_rel["published_at"],
+                        }
+                        if dev_commit_sha:
+                            dev_entry["commit_sha"] = dev_commit_sha
+                            dev_entry["commit_sha_short"] = dev_commit_short
+                        if dev_min_ver:
+                            dev_entry["min_dispatcharr_version"] = dev_min_ver
+                        print(f"  -> ok  sha256={dev_sha256[:16]}...", flush=True)
+
+    if not versions and not dev_entry:
         print("\nNo qualifying releases found – nothing to publish.")
         set_output("has_releases", "false")
         sys.exit(0)
 
-    latest = versions[0]
-    latest_ver = latest["version"]
+    # Root manifest always points to the latest stable release.
+    # If no stable releases exist yet, fall back to the dev entry.
+    if versions:
+        latest = versions[0]
+        latest_ver = latest["version"]
+    else:
+        latest = dev_entry
+        latest_ver = latest["version"]
 
     registry_url = f"https://github.com/{repo}"
     root_url = f"https://raw.githubusercontent.com/{repo}/manifest"
@@ -195,7 +268,7 @@ def main():
         "author": meta.get("author", ""),
         "license": meta.get("license", "MIT"),
         "latest_version": latest_ver,
-        "versions": versions,
+        "versions": versions + ([dev_entry] if dev_entry else []),
         "latest": {**latest},
     }
 
@@ -211,7 +284,8 @@ def main():
         json.dump(per_plugin_manifest, f, indent=2)
         f.write("\n")
 
-    print(f"\nDone – {len(versions)} version(s), latest {latest_ver}")
+    total = len(versions) + (1 if dev_entry else 0)
+    print(f"\nDone – {total} version(s) ({len(versions)} stable{', 1 dev' if dev_entry else ''}), latest stable {latest_ver}")
     set_output("has_releases", "true")
 
 

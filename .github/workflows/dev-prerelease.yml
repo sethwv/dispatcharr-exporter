@@ -1,0 +1,70 @@
+name: Publish Dev Pre-release
+
+# On every push to dev, builds a fresh zip and creates a new `dev-{sha}`
+# pre-release.  Old dev-* pre-releases are cleaned up first.  Creating a
+# new release emits release.published, which triggers update-manifest.yml.
+
+on:
+  push:
+    branches:
+      - dev
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dev-prerelease
+  cancel-in-progress: true
+
+jobs:
+  dev-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Determine dev version
+        id: version
+        run: |
+          HASH=$(git rev-parse --short=8 HEAD)
+          TIMESTAMP=$(date +%Y%m%d%H%M%S)
+          VERSION="dev-${HASH}-${TIMESTAMP}"
+          TAG="dev-${HASH}"
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "TAG=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Update version in source files
+        run: |
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" src/plugin.json
+
+      - name: Package plugin
+        run: |
+          chmod +x package.sh
+          ./package.sh
+
+      - name: Delete old dev pre-releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # List all pre-release tags starting with 'dev-' and delete them
+          gh api repos/${{ github.repository }}/releases --paginate --jq '.[] | select(.prerelease) | .tag_name' | \
+            grep '^dev-' | while read -r OLD_TAG; do
+              echo "Deleting old dev release: $OLD_TAG"
+              gh release delete "$OLD_TAG" --yes 2>/dev/null || true
+              git push origin :"refs/tags/$OLD_TAG" 2>/dev/null || true
+            done
+
+      - name: Create dev pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          TAG="${{ steps.version.outputs.TAG }}"
+          gh release create "$TAG" \
+            --prerelease \
+            --title "Dev Build (${VERSION})" \
+            --notes "Automated dev build from the \`dev\` branch. Install at your own risk — not for production use." \
+            dispatcharr-exporter-${VERSION}.zip
