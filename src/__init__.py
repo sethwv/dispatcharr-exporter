@@ -317,12 +317,12 @@ class Plugin:
                 logger.info("Plugin stopping, sending Redis stop signal to orphaned metrics server")
                 redis_client.set(REDIS_KEY_STOP, "1")
 
-        # Clear the autostart dedup key so the next discovery can re-autostart
+        # Clear leader election and dedup keys so the next discovery can re-autostart
         try:
             rc = get_redis_client()
             if rc:
                 from .config import REDIS_KEY_LEADER
-                rc.delete(REDIS_KEY_LEADER + ":autostart_dedup")
+                rc.delete(REDIS_KEY_LEADER, REDIS_KEY_LEADER + ":autostart_dedup")
         except Exception:
             pass
 
