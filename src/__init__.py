@@ -310,13 +310,21 @@ class Plugin:
         if current_server and current_server.is_running():
             logger.info("Plugin stopping, shutting down metrics server")
             current_server.stop()
-            return
+        else:
+            # Redis fallback: signal orphaned server from a previous module load
+            redis_client = get_redis_client()
+            if redis_client and read_redis_flag(redis_client, REDIS_KEY_RUNNING):
+                logger.info("Plugin stopping, sending Redis stop signal to orphaned metrics server")
+                redis_client.set(REDIS_KEY_STOP, "1")
 
-        # Redis fallback: signal orphaned server from a previous module load
-        redis_client = get_redis_client()
-        if redis_client and read_redis_flag(redis_client, REDIS_KEY_RUNNING):
-            logger.info("Plugin stopping, sending Redis stop signal to orphaned metrics server")
-            redis_client.set(REDIS_KEY_STOP, "1")
+        # Clear the autostart dedup key so the next discovery can re-autostart
+        try:
+            rc = get_redis_client()
+            if rc:
+                from .config import REDIS_KEY_LEADER
+                rc.delete(REDIS_KEY_LEADER + ":autostart_dedup")
+        except Exception:
+            pass
 
 
 __version__ = PLUGIN_CONFIG["version"]
