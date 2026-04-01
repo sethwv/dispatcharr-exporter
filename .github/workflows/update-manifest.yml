@@ -11,7 +11,7 @@ name: Update Manifest Branch
 
 on:
   release:
-    types: [published, released, deleted]
+    types: [published, released, prereleased, deleted]
   workflow_dispatch:
 
 permissions:

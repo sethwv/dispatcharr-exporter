@@ -29,16 +29,18 @@ jobs:
         id: version
         run: |
           HASH=$(git rev-parse --short=8 HEAD)
-          TIMESTAMP=$(date +%Y%m%d%H%M%S)
-          VERSION="dev-${HASH}-${TIMESTAMP}"
+          # Leading dash → Dispatcharr prepends 'v' → displays as 'v-dev-{sha}'
+          PLUGIN_VERSION="-dev-${HASH}"
           TAG="dev-${HASH}"
-          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          # package.sh strips the leading dash when naming the zip
+          ZIP="dispatcharr-exporter-dev-${HASH}.zip"
+          echo "PLUGIN_VERSION=$PLUGIN_VERSION" >> $GITHUB_OUTPUT
           echo "TAG=$TAG" >> $GITHUB_OUTPUT
+          echo "ZIP=$ZIP" >> $GITHUB_OUTPUT
 
       - name: Update version in source files
         run: |
-          VERSION="${{ steps.version.outputs.VERSION }}"
-          sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" src/plugin.json
+          sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"${{ steps.version.outputs.PLUGIN_VERSION }}\"/" src/plugin.json
 
       - name: Package plugin
         run: |
@@ -61,10 +63,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          VERSION="${{ steps.version.outputs.VERSION }}"
           TAG="${{ steps.version.outputs.TAG }}"
+          ZIP="${{ steps.version.outputs.ZIP }}"
           gh release create "$TAG" \
             --prerelease \
-            --title "Dev Build (${VERSION})" \
+            --title "Dev Build ($TAG)" \
             --notes "Automated dev build from the \`dev\` branch. Install at your own risk — not for production use." \
-            dispatcharr-exporter-${VERSION}.zip
+            "$ZIP"

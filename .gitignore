@@ -140,3 +140,4 @@ README_OLD.md
 *.bak
 *.orig
 .github/copilot-instructions.md
+dispatcharr-exporter.code-workspace
