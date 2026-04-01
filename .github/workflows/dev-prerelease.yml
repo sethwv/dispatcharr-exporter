@@ -65,8 +65,35 @@ jobs:
         run: |
           TAG="${{ steps.version.outputs.TAG }}"
           ZIP="${{ steps.version.outputs.ZIP }}"
+
+          NAME=$(jq -r '.name' src/plugin.json)
+          DESCRIPTION=$(jq -r '.description' src/plugin.json)
+          AUTHOR=$(jq -r '.author' src/plugin.json)
+          LICENSE=$(jq -r '.license' src/plugin.json)
+          MIN_VER=$(jq -r '.min_dispatcharr_version' src/plugin.json)
+          HELP_URL=$(jq -r '.help_url' src/plugin.json)
+          DISCORD=$(jq -r '.discord_thread // empty' src/plugin.json)
+
+          NOTES=$(cat <<NOTES_EOF
+          **${NAME}**  dev build from the \`dev\` branch.
+
+          | Field | Value |
+          |---|---|
+          | **Description** | ${DESCRIPTION} |
+          | **Author** | ${AUTHOR} |
+          | **License** | ${LICENSE} |
+          | **Min Dispatcharr** | ${MIN_VER} |
+          | **Docs** | ${HELP_URL} |
+          NOTES_EOF
+          )
+
+          if [ -n "$DISCORD" ]; then
+            NOTES="${NOTES}
+          | **Discord** | ${DISCORD} |"
+          fi
+
           gh release create "$TAG" \
             --prerelease \
             --title "Dev Build ($TAG)" \
-            --notes "Automated dev build from the \`dev\` branch. Install at your own risk — not for production use." \
+            --notes "$NOTES" \
             "$ZIP"
