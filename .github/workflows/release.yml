@@ -19,6 +19,14 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Read plugin config
+        id: config
+        run: |
+          SLUG=$(python3 -c "import json; print(json.load(open('.github/workflows/manifest-config.json'))['slug'])")
+          BASE_NAME="${SLUG//_/-}"
+          echo "slug=$SLUG" >> $GITHUB_OUTPUT
+          echo "base_name=$BASE_NAME" >> $GITHUB_OUTPUT
       
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -60,10 +68,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
       
-      - name: Update version in plugin.py
+      - name: Update version in plugin.json
         run: |
           VERSION="${{ steps.version.outputs.VERSION }}"
-          sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" src/plugin.py
           sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" src/plugin.json
           
       - name: Package plugin
@@ -74,14 +81,13 @@ jobs:
       - name: Prepare artifact directory
         run: |
           mkdir -p artifact-upload
-          # Copy the plugin directory for artifact
-          cp -r src artifact-upload/dispatcharr_exporter
+          cp -r src artifact-upload/${{ steps.config.outputs.slug }}
       
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: dispatcharr-exporter${{ steps.version.outputs.VERSION }}
-          path: artifact-upload/dispatcharr_exporter
+          name: ${{ steps.config.outputs.base_name }}${{ steps.version.outputs.VERSION }}
+          path: artifact-upload/${{ steps.config.outputs.slug }}
       
       - name: Upload to release
         if: steps.version.outputs.IS_RELEASE == 'true'
@@ -90,12 +96,13 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.VERSION }}"
           TAG="${{ steps.version.outputs.TAG }}"
+          BASE_NAME="${{ steps.config.outputs.base_name }}"
           
           # Upload the new version (clobber will fail gracefully on immutable releases)
-          if ! gh release upload "$TAG" dispatcharr-exporter-${VERSION}.zip --clobber 2>&1; then
+          if ! gh release upload "$TAG" "${BASE_NAME}-${VERSION}.zip" --clobber 2>&1; then
             echo "Warning: Upload failed (release may be immutable or asset already exists)"
             # Check if asset exists - if so, we're done
-            if gh release view "$TAG" --json assets --jq ".assets[].name" | grep -q "dispatcharr-exporter-${VERSION}.zip"; then
+            if gh release view "$TAG" --json assets --jq ".assets[].name" | grep -q "${BASE_NAME}-${VERSION}.zip"; then
               echo "Asset already exists, continuing..."
             else
               echo "Error: Upload failed and asset doesn't exist"
@@ -107,6 +114,6 @@ jobs:
           # (will fail gracefully on immutable releases)
           if [[ "$VERSION" != *"-pre"* ]]; then
             PRE_VERSION="${VERSION}-pre"
-            echo "Attempting to remove old prerelease asset: dispatcharr-exporter-${PRE_VERSION}.zip"
-            gh release delete-asset "$TAG" "dispatcharr-exporter-${PRE_VERSION}.zip" 2>/dev/null || echo "Could not remove prerelease asset (may not exist or releases may be immutable)"
+            echo "Attempting to remove old prerelease asset: ${BASE_NAME}-${PRE_VERSION}.zip"
+            gh release delete-asset "$TAG" "${BASE_NAME}-${PRE_VERSION}.zip" 2>/dev/null || echo "Could not remove prerelease asset (may not exist or releases may be immutable)"
           fi

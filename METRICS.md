@@ -12,7 +12,7 @@ Complete reference for all metrics exposed by the Dispatcharr Prometheus Exporte
 - [Stream Metrics](#stream-metrics)
 - [Profile Metrics](#profile-metrics)
 - [Client Connection Metrics](#client-connection-metrics)
-- [Legacy Metrics](#legacy-metrics)
+- [User Metrics](#user-metrics)
 
 ---
 
@@ -54,7 +54,6 @@ dispatcharr_exporter_info{version="1.2.0"} 1
 **Labels:** All plugin settings as labels (for debugging/support)
 - `auto_start` - Auto-start enabled (true/false)
 - `suppress_access_logs` - Access log suppression (true/false)
-- `disable_update_notifications` - Update notifications disabled (true/false)
 - `port` - Metrics server port
 - `host` - Metrics server host
 - `base_url` - Dispatcharr base URL
@@ -62,13 +61,13 @@ dispatcharr_exporter_info{version="1.2.0"} 1
 - `include_epg_stats` - EPG stats included (true/false)
 - `include_client_stats` - Client stats included (true/false)
 - `include_source_urls` - Source URLs included (true/false)
-- `include_legacy_metrics` - Legacy metrics included (true/false)
+- `include_user_stats` - User stats included (true/false)
 
 **Description:** Info metric showing all exporter configuration settings.
 
 **Example:**
 ```
-dispatcharr_exporter_settings_info{auto_start="true",suppress_access_logs="true",disable_update_notifications="false",port="9192",host="0.0.0.0",base_url="",include_m3u_stats="true",include_epg_stats="false",include_client_stats="false",include_source_urls="false",include_legacy_metrics="false"} 1
+dispatcharr_exporter_settings_info{auto_start="true",suppress_access_logs="true",port="9192",host="0.0.0.0",base_url="",include_m3u_stats="true",include_epg_stats="false",include_client_stats="false",include_source_urls="false",include_user_stats="false"} 1
 ```
 
 ### `dispatcharr_exporter_port`
@@ -386,7 +385,7 @@ dispatcharr_stream_current_bitrate_bps{channel_uuid="12572661-bc4b-4937-8501-665
 dispatcharr_stream_total_transfer_mb{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 4096.25
 ```
 
-### Context Metrics (For Enrichment)
+### Context Metrics
 
 All context metrics use minimal labels (`channel_uuid`, `channel_number`) for consistency.
 
@@ -441,14 +440,14 @@ dispatcharr_stream_index{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",cha
 - `channel_uuid` - Channel UUID
 - `channel_number` - Channel number
 
-**Description:** Total number of streams configured for this channel. Useful with `dispatcharr_stream_index` to detect when channel is on its last available stream.
+**Description:** Total number of streams configured for this channel.
 
 **Example:**
 ```
 dispatcharr_stream_available_streams{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 3
 ```
 
-**Useful queries:**
+**Example queries:**
 ```promql
 # Remaining backup streams available
 dispatcharr_stream_available_streams - dispatcharr_stream_index - 1
@@ -479,7 +478,7 @@ dispatcharr_stream_index >= dispatcharr_stream_available_streams - 1
 - VOD-specific: `content_uuid`, `content_type` (movie/episode)
 - Episode-specific: `season_number`, `episode_number`, `series_name`
 
-**Description:** Full metadata for the active stream. Use for joining to enrich other metrics. Note: Unknown/unavailable values are empty strings, not "unknown".
+**Description:** Full metadata for the active stream. Unknown/unavailable values are empty strings, not "unknown".
 
 **Example (Live):**
 ```
@@ -552,7 +551,7 @@ dispatcharr_stream_programming{type="vod",channel_uuid="vod_1771265648474_7145",
 dispatcharr_stream_programming{type="vod",channel_uuid="vod_1771265648475_8156",channel_number="1771265648475",previous_title="",previous_subtitle="",previous_description="",previous_start_time="",previous_end_time="",current_title="Breaking Bad",current_subtitle="S03E05 - Más",current_description="Gus increases his efforts to lure Walt back into business, forcing a rift between Walt and Jesse.",current_start_time="2026-02-16T20:15:22+00:00",current_end_time="2026-02-16T21:02:22+00:00",next_title="",next_subtitle="",next_description="",next_start_time="",next_end_time=""} 0.1852
 ```
 
-**Useful queries:**
+**Example queries:**
 ```promql
 # Time remaining in current program/content (minutes) - Live TV
 (1 - dispatcharr_stream_programming{type="live"}) * 
@@ -611,7 +610,7 @@ dispatcharr_active_clients 15
 - `user_agent` - Client user agent string
 - `worker_id` - Dispatcharr worker ID handling the connection
 
-**Description:** Metadata for each connected client. Use for enrichment joins with other client metrics. Join with `dispatcharr_stream_metadata` to get channel name.
+**Description:** Metadata for each connected client. Join with `dispatcharr_stream_metadata` on `channel_uuid` to get channel name.
 
 **Example:**
 ```
@@ -870,41 +869,69 @@ dispatcharr_client_current_transfer_rate_bps{type="vod",client_id="vod_177126564
 
 ---
 
-## Legacy Metrics
+## User Metrics
 
-*Deprecated metrics - disabled by default via `include_legacy_metrics` setting*
+*Optional metrics - disabled by default via `include_user_stats` setting*
 
-**Warning:** These metrics are from v1.1.0 and earlier. They are NOT recommended as they create new time series whenever any value changes. Use the new layered metrics instead.
+These metrics expose user account information. Only enable on private networks.
 
-### `dispatcharr_stream_info`
+### `dispatcharr_user_info`
 **Type:** gauge  
 **Value:** Always 1  
-**Labels:** ALL stream information as labels (values and metadata mixed)
+**Labels:**
+- `user_id` - Dispatcharr user ID
+- `username` - Username
+- `user_level` - Role: `"streamer"` (0), `"standard"` (1), or `"admin"` (10+)
+- `is_staff` - Django staff flag (`"true"` / `"false"`)
+- `date_joined` - Unix timestamp when the account was created
 
-**Description:** Legacy format with all stream statistics as labels. Creates high cardinality and new series on every value change.
+**Description:** Per-user static information. Join with other user metrics on `user_id`.
 
-**Migration:** Use the new layered metrics:
-- Use `dispatcharr_stream_metadata` for static metadata
-- Use separate value metrics (`dispatcharr_stream_fps`, `dispatcharr_stream_uptime_seconds`, etc.) for dynamic values
-- Join metrics using `channel_uuid` and `channel_number`
+**Example:**
+```
+dispatcharr_user_info{user_id="1",username="alice",user_level="admin",is_staff="true",date_joined="1700000000"} 1
+dispatcharr_user_info{user_id="2",username="bob",user_level="streamer",is_staff="false",date_joined="1710000000"} 1
+```
 
-### `dispatcharr_m3u_account_info`
+### `dispatcharr_user_stream_limit`
 **Type:** gauge  
-**Value:** Always 1  
-**Labels:** Account information with `stream_count` as a label
+**Value:** Configured concurrent stream limit (0 = unlimited)  
+**Labels:**
+- `user_id` - Dispatcharr user ID
+- `username` - Username
 
-**Description:** Legacy format with stream count as a label.
+**Description:** The maximum number of concurrent streams configured for each user. A value of `0` means no limit is enforced.
 
-**Migration:** Use `dispatcharr_m3u_account_stream_count` for the stream count as a proper gauge value.
+**Example:**
+```
+dispatcharr_user_stream_limit{user_id="1",username="alice"} 0
+dispatcharr_user_stream_limit{user_id="2",username="bob"} 2
+```
 
-### `dispatcharr_epg_source_info`
+### `dispatcharr_user_active_streams`
 **Type:** gauge  
-**Value:** Always 1  
-**Labels:** EPG source information with `priority` as a label
+**Value:** Current active stream count  
+**Labels:**
+- `user_id` - Dispatcharr user ID
+- `username` - Username
 
-**Description:** Legacy format with priority as a label.
+**Description:** Number of streams currently active for each user, counting both live channel clients and active VOD sessions.
 
-**Migration:** Use `dispatcharr_epg_source_priority` for the priority as a proper gauge value.
+**Example:**
+```
+dispatcharr_user_active_streams{user_id="1",username="alice"} 1
+dispatcharr_user_active_streams{user_id="2",username="bob"} 2
+```
+
+**Example queries:**
+```promql
+# Stream usage ratio per user (requires stream_limit > 0)
+dispatcharr_user_active_streams / dispatcharr_user_stream_limit > 0
+
+# Users at or over their stream limit
+dispatcharr_user_active_streams >= dispatcharr_user_stream_limit
+  and dispatcharr_user_stream_limit > 0
+```
 
 ---
 

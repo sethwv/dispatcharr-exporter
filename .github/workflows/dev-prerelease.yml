@@ -1,8 +1,9 @@
 name: Publish Dev Pre-release
 
-# On every push to dev, builds a fresh zip and creates a new `dev-{sha}`
-# pre-release.  Old dev-* pre-releases are cleaned up first.  The
-# update-manifest job is then called directly to rebuild the manifest branch.
+# On every push to dev, builds a fresh zip and recreates the fixed `dev`
+# pre-release.  The existing `dev` release and tag are deleted first so the
+# download URL stays stable.  The update-manifest job is then called directly
+# to rebuild the manifest branch.
 
 on:
   push:
@@ -25,6 +26,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Read plugin config
+        id: config
+        run: |
+          SLUG=$(python3 -c "import json; print(json.load(open('.github/workflows/manifest-config.json'))['slug'])")
+          BASE_NAME="${SLUG//_/-}"
+          echo "slug=$SLUG" >> $GITHUB_OUTPUT
+          echo "base_name=$BASE_NAME" >> $GITHUB_OUTPUT
+
       - name: Determine dev version
         id: version
         env:
@@ -38,10 +47,11 @@ jobs:
             BASE="0.0.0"
           fi
           PLUGIN_VERSION="${BASE}-dev-${HASH}"
-          TAG="dev-${HASH}"
-          # package.sh strips a leading dash; here there's none so zip uses the version as-is
-          ZIP="dispatcharr-exporter-${PLUGIN_VERSION}.zip"
+          TAG="dev"
+          BASE_NAME="${{ steps.config.outputs.base_name }}"
+          ZIP="${BASE_NAME}-dev.zip"
           echo "PLUGIN_VERSION=$PLUGIN_VERSION" >> $GITHUB_OUTPUT
+          echo "HASH=$HASH" >> $GITHUB_OUTPUT
           echo "TAG=$TAG" >> $GITHUB_OUTPUT
           echo "ZIP=$ZIP" >> $GITHUB_OUTPUT
 
@@ -54,17 +64,22 @@ jobs:
           chmod +x package.sh
           ./package.sh
 
-      - name: Delete old dev pre-releases
+      - name: Rename zip for stable dev link
+        run: |
+          BASE_NAME="${{ steps.config.outputs.base_name }}"
+          ZIP="${{ steps.version.outputs.ZIP }}"
+          # package.sh produces {base_name}-{PLUGIN_VERSION}.zip; rename to stable name
+          VERSIONED=$(ls "${BASE_NAME}"-*.zip 2>/dev/null | head -1)
+          if [ -n "$VERSIONED" ] && [ "$VERSIONED" != "$ZIP" ]; then
+            mv "$VERSIONED" "$ZIP"
+          fi
+
+      - name: Delete old dev release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # List all pre-release tags starting with 'dev-' and delete them
-          gh api repos/${{ github.repository }}/releases --paginate --jq '.[] | select(.prerelease) | .tag_name' | \
-            grep '^dev-' | while read -r OLD_TAG; do
-              echo "Deleting old dev release: $OLD_TAG"
-              gh release delete "$OLD_TAG" --yes 2>/dev/null || true
-              git push origin :"refs/tags/$OLD_TAG" 2>/dev/null || true
-            done
+          gh release delete "dev" --yes 2>/dev/null || true
+          git push origin :refs/tags/dev 2>/dev/null || true
 
       - name: Create dev pre-release
         env:
@@ -72,6 +87,7 @@ jobs:
         run: |
           TAG="${{ steps.version.outputs.TAG }}"
           ZIP="${{ steps.version.outputs.ZIP }}"
+          HASH="${{ steps.version.outputs.HASH }}"
 
           NAME=$(jq -r '.name' src/plugin.json)
           DESCRIPTION=$(jq -r '.description' src/plugin.json)
@@ -101,7 +117,7 @@ jobs:
 
           gh release create "$TAG" \
             --prerelease \
-            --title "Dev Build ($TAG)" \
+            --title "Dev Build (${HASH})" \
             --notes "$NOTES" \
             "$ZIP"
 

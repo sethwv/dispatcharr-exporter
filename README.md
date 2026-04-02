@@ -91,7 +91,6 @@ For a complete list of available metrics, query examples, and best practices, se
 
 - **Auto-start Server** (boolean, default: `false`): Automatically start metrics server when Dispatcharr starts
 - **Suppress Access Logs** (boolean, default: `true`): Suppress HTTP access logs for /metrics requests
-- **Disable Update Notifications** (boolean, default: `false`): Disable automatic update notifications (updates can still be checked manually via the 'Check for Updates' action)
 - **Metrics Server Port** (number, default: `9192`): Port for the HTTP metrics server
 - **Metrics Server Host** (string, default: `0.0.0.0`): Host address to bind
   - `0.0.0.0` - Listen on all network interfaces (accessible remotely)
@@ -102,14 +101,11 @@ For a complete list of available metrics, query examples, and best practices, se
 
 - **Include M3U Account Metrics** (boolean, default: `true`): Include M3U account and profile connection metrics
 - **Include EPG Source Metrics** (boolean, default: `false`): Include EPG source status metrics
-- **Include VOD Metrics** (boolean, default: `false`): Include VOD session and stream metrics
 - **Include Client Connection Statistics** (boolean, default: `false`): Include individual client connection information
   - Warning: May expose sensitive information in metrics
 - **Include Provider/Source Information** (boolean, default: `false`): Include server URLs & XC usernames in M3U account and EPG source metrics
   - Warning: Ensure this is DISABLED if sharing output in Discord for troubleshooting
-- **Include Legacy Metric Formats** (boolean, default: `false`): Include backward-compatible metrics from v1.1.0 and earlier
-  - Only enable if you have existing dashboards that need migration time
-  - NOT recommended - use the new layered metrics instead for proper time series
+- **Include User Statistics** (boolean, default: `false`): Include per-user metrics (user info, stream limits, active stream counts)
 
 ### Plugin Actions
 
@@ -117,7 +113,6 @@ For a complete list of available metrics, query examples, and best practices, se
 - **Stop Metrics Server**: Stops the HTTP server
 - **Restart Metrics Server**: Restarts the server (useful after changing settings)
 - **Server Status**: Shows if the server is running and the endpoint URL
-- **Check for Updates**: Check if a new version is available
 
 ## Grafana Usage Examples
 
