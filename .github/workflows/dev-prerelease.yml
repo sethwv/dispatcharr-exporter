@@ -30,9 +30,11 @@ jobs:
         id: config
         run: |
           SLUG=$(python3 -c "import json; print(json.load(open('.github/workflows/manifest-config.json'))['slug'])")
+          DEV_TAG=$(python3 -c "import json; print(json.load(open('.github/workflows/manifest-config.json'))['dev_tag'])")
           BASE_NAME="${SLUG//_/-}"
           echo "slug=$SLUG" >> $GITHUB_OUTPUT
           echo "base_name=$BASE_NAME" >> $GITHUB_OUTPUT
+          echo "dev_tag=$DEV_TAG" >> $GITHUB_OUTPUT
 
       - name: Determine dev version
         id: version
@@ -47,9 +49,9 @@ jobs:
             BASE="0.0.0"
           fi
           PLUGIN_VERSION="${BASE}-dev-${HASH}"
-          TAG="dev"
+          TAG="${{ steps.config.outputs.dev_tag }}"
           BASE_NAME="${{ steps.config.outputs.base_name }}"
-          ZIP="${BASE_NAME}-dev.zip"
+          ZIP="${BASE_NAME}-${{ steps.config.outputs.dev_tag }}.zip"
           echo "PLUGIN_VERSION=$PLUGIN_VERSION" >> $GITHUB_OUTPUT
           echo "HASH=$HASH" >> $GITHUB_OUTPUT
           echo "TAG=$TAG" >> $GITHUB_OUTPUT
@@ -78,8 +80,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release delete "dev" --yes 2>/dev/null || true
-          git push origin :refs/tags/dev 2>/dev/null || true
+          gh release delete "${{ steps.config.outputs.dev_tag }}" --yes 2>/dev/null || true
+          git push origin :refs/tags/${{ steps.config.outputs.dev_tag }} 2>/dev/null || true
 
       - name: Create dev pre-release
         env:
