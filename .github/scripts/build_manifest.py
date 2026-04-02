@@ -224,13 +224,9 @@ def main():
         sys.exit(0)
 
     # Root manifest always points to the latest stable release.
-    # If no stable releases exist yet, fall back to the dev entry.
-    if versions:
-        latest = versions[0]
-        latest_ver = latest["version"]
-    else:
-        latest = dev_entry
-        latest_ver = latest["version"]
+    # If no stable releases exist, omit the latest_* fields entirely.
+    latest = versions[0] if versions else None
+    latest_ver = latest["version"] if latest else None
 
     registry_url = f"https://github.com/{repo}"
     root_url = f"https://raw.githubusercontent.com/{repo}/manifest"
@@ -243,12 +239,12 @@ def main():
         "author": meta.get("author", ""),
         "license": meta.get("license", "MIT"),
         "latest_version": latest_ver,
-        "last_updated": latest.get("build_timestamp"),
+        "last_updated": latest.get("build_timestamp") if latest else None,
         "manifest_url": f"plugins/{SLUG}/manifest.json",
-        "latest_url": latest["url"],
-        "latest_sha256": latest["checksum_sha256"],
+        "latest_url": latest["url"] if latest else None,
+        "latest_sha256": latest["checksum_sha256"] if latest else None,
         "icon_url": f"plugins/{SLUG}/logo.png",
-        "min_dispatcharr_version": latest.get("min_dispatcharr_version"),
+        "min_dispatcharr_version": latest.get("min_dispatcharr_version") if latest else None,
         "discord_thread": meta.get("discord_thread"),
         "help_url": meta.get("help_url"),
     }
