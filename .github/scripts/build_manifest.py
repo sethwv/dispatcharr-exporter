@@ -238,7 +238,7 @@ def main():
     # Build the plugin entry for the root manifest
     plugin_entry = {
         "slug": SLUG,
-        "name": meta.get("name", "Dispatcharr Exporter"),
+        "name": meta.get("name", SLUG),
         "description": meta.get("description", ""),
         "author": meta.get("author", ""),
         "license": meta.get("license", "MIT"),
@@ -264,7 +264,7 @@ def main():
 
     per_plugin_manifest = {
         "slug": SLUG,
-        "name": meta.get("name", "Dispatcharr Exporter"),
+        "name": meta.get("name", SLUG),
         "description": meta.get("description", ""),
         "author": meta.get("author", ""),
         "license": meta.get("license", "MIT"),

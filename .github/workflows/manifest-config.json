@@ -3,5 +3,5 @@
   "registry_name": "Dispatcharr Exporter Dev",
   "plugin_json": "src/plugin.json",
   "logo": "src/logo.png",
-  "dev_tag_prefix": "dev-"
+  "dev_tag": "dev"
 }
