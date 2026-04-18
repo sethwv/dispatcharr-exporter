@@ -117,17 +117,29 @@ dispatcharr_m3u_account_status{status="error"} 1
 dispatcharr_m3u_account_status{status="idle"} 1
 ```
 
-### `dispatcharr_m3u_account_stream_count`
+### `dispatcharr_m3u_account_info`
 **Type:** gauge  
-**Value:** Number of streams configured for this account  
+**Value:** Always 1  
 **Labels:**
 - `account_id` - Account database ID
 - `account_name` - Account name
 - `account_type` - Account type (XC, STD, etc.)
 - `status` - Account status
 - `is_active` - Active state (true/false)
-- `username` - XC username (optional, only if `include_source_urls=true`)
+- `username` - XC username (optional, only if `include_source_urls=true` and account type is XC)
 - `server_url` - Server URL (optional, only if `include_source_urls=true`)
+
+**Description:** Metadata for each M3U account. Shares labels with `dispatcharr_m3u_account_stream_count`.
+
+**Example:**
+```
+dispatcharr_m3u_account_info{account_id="1",account_name="Provider A",account_type="XC",status="success",is_active="true"} 1
+```
+
+### `dispatcharr_m3u_account_stream_count`
+**Type:** gauge  
+**Value:** Number of streams configured for this account  
+**Labels:** Same as `dispatcharr_m3u_account_info`
 
 **Description:** Number of streams configured for each M3U account.
 
@@ -245,13 +257,17 @@ All value metrics use minimal identifying labels (`type` plus stream-specific id
 #### `dispatcharr_active_streams`
 **Type:** gauge  
 **Value:** Count of active streams  
-**Labels:** None
+**Labels:**
+- None (total), or
+- `type` - "live" or "vod" (per-type breakdown)
 
-**Description:** Total number of currently active streams (live and VOD combined).
+**Description:** Total number of currently active streams. Emitted as a total and per-type breakdown.
 
 **Example:**
 ```
 dispatcharr_active_streams 12
+dispatcharr_active_streams{type="live"} 8
+dispatcharr_active_streams{type="vod"} 4
 ```
 
 #### `dispatcharr_stream_uptime_seconds`
@@ -290,14 +306,15 @@ dispatcharr_stream_active_clients{type="vod",channel_uuid="vod_1771265648474_714
 **Type:** gauge  
 **Value:** Frames per second  
 **Labels:**
+- `type` - Stream type (always "live")
 - `channel_uuid` - Channel UUID
 - `channel_number` - Channel number
 
-**Description:** Current stream frames per second.
+**Description:** Current stream frames per second. Live streams only.
 
 **Example:**
 ```
-dispatcharr_stream_fps{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 59.94
+dispatcharr_stream_fps{type="live",channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 59.94
 ```
 
 #### `dispatcharr_stream_buffering_speed`
@@ -319,88 +336,92 @@ dispatcharr_stream_buffering_speed{type="live",channel_uuid="12572661-bc4b-4937-
 **Type:** gauge  
 **Value:** Bitrate in bits per second  
 **Labels:**
+- `type` - Stream type (always "live")
 - `channel_uuid` - Channel UUID
 - `channel_number` - Channel number
 
-**Description:** Source video bitrate in bits per second. Use Grafana's "bits/sec" unit for automatic formatting.
+**Description:** Source video bitrate in bits per second. Live streams only. Use Grafana's "bits/sec" unit for automatic formatting.
 
 **Example:**
 ```
-dispatcharr_stream_video_bitrate_bps{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 8500000
+dispatcharr_stream_video_bitrate_bps{type="live",channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 8500000
 ```
 
 #### `dispatcharr_stream_transcode_bitrate_bps`
 **Type:** gauge  
 **Value:** Bitrate in bits per second  
 **Labels:**
+- `type` - Stream type (always "live")
 - `channel_uuid` - Channel UUID
 - `channel_number` - Channel number
 
-**Description:** Transcode output bitrate in bits per second. Use Grafana's "bits/sec" unit for automatic formatting.
+**Description:** Transcode output bitrate in bits per second. Live streams only. Use Grafana's "bits/sec" unit for automatic formatting.
 
 **Example:**
 ```
-dispatcharr_stream_transcode_bitrate_bps{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 5383400
+dispatcharr_stream_transcode_bitrate_bps{type="live",channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 5383400
 ```
 
 #### `dispatcharr_stream_avg_bitrate_bps`
 **Type:** gauge  
 **Value:** Bitrate in bits per second  
 **Labels:**
-- `channel_uuid` - Channel UUID
-- `channel_number` - Channel number
+- `type` - Stream type: "live" or "vod"
+- `channel_uuid` - Stream identifier
+- `channel_number` - Stream number
 
-**Description:** Calculated average bitrate in bits per second (total bytes * 8 / uptime). Use Grafana's "bits/sec" unit for automatic formatting.
+**Description:** Calculated average bitrate in bits per second (total bytes * 8 / uptime). Available for both live and VOD. Use Grafana's "bits/sec" unit for automatic formatting.
 
 **Example:**
 ```
-dispatcharr_stream_avg_bitrate_bps{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 5200500
+dispatcharr_stream_avg_bitrate_bps{type="live",channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 5200500
 ```
 
 #### `dispatcharr_stream_current_bitrate_bps`
 **Type:** gauge  
 **Value:** Bitrate in bits per second  
 **Labels:**
+- `type` - Stream type (always "live")
 - `channel_uuid` - Channel UUID
 - `channel_number` - Channel number
 
-**Description:** Current bitrate in bits per second (sum of all connected client transfer rates). Matches the "current bitrate" shown in Dispatcharr UI. Use Grafana's "bits/sec" unit for automatic formatting.
+**Description:** Current bitrate in bits per second (sum of all connected client transfer rates). Live streams only. Use Grafana's "bits/sec" unit for automatic formatting.
 
 **Example:**
 ```
-dispatcharr_stream_current_bitrate_bps{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 4820000
+dispatcharr_stream_current_bitrate_bps{type="live",channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 4820000
 ```
 
 #### `dispatcharr_stream_total_transfer_mb`
 **Type:** counter  
 **Value:** Total megabytes transferred  
 **Labels:**
-- `channel_uuid` - Channel UUID
-- `channel_number` - Channel number
+- `type` - Stream type: "live" or "vod"
+- `channel_uuid` - Stream identifier
+- `channel_number` - Stream number
 
-**Description:** Total data transferred by this stream in megabytes.
+**Description:** Total data transferred by this stream in megabytes. Available for both live and VOD.
 
 **Example:**
 ```
-dispatcharr_stream_total_transfer_mb{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 4096.25
+dispatcharr_stream_total_transfer_mb{type="live",channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 4096.25
 ```
 
 ### Context Metrics
-
-All context metrics use minimal labels (`channel_uuid`, `channel_number`) for consistency.
 
 #### `dispatcharr_stream_channel_number`
 **Type:** gauge  
 **Value:** The channel number  
 **Labels:**
+- `type` - Stream type (always "live")
 - `channel_uuid` - Channel UUID
 - `channel_number` - Channel number
 
-**Description:** Channel number as a numeric value for sorting and filtering.
+**Description:** Channel number as a numeric value for sorting and filtering. Live streams only.
 
 **Example:**
 ```
-dispatcharr_stream_channel_number{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 1001.0
+dispatcharr_stream_channel_number{type="live",channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 1001.0
 ```
 
 #### `dispatcharr_stream_id`
@@ -423,28 +444,30 @@ dispatcharr_stream_id{type="vod",channel_uuid="vod_1771265648474_7145",channel_n
 **Type:** gauge  
 **Value:** The stream index (0-based)  
 **Labels:**
+- `type` - Stream type (always "live")
 - `channel_uuid` - Channel UUID
 - `channel_number` - Channel number
 
-**Description:** Position of active stream in channel's stream list. 0 = primary stream, >0 = fallback/backup stream.
+**Description:** Position of active stream in channel's stream list. 0 = primary stream, >0 = fallback/backup stream. Live streams only.
 
 **Example:**
 ```
-dispatcharr_stream_index{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 0
+dispatcharr_stream_index{type="live",channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 0
 ```
 
 #### `dispatcharr_stream_available_streams`
 **Type:** gauge  
 **Value:** Total number of streams configured  
 **Labels:**
+- `type` - Stream type (always "live")
 - `channel_uuid` - Channel UUID
 - `channel_number` - Channel number
 
-**Description:** Total number of streams configured for this channel.
+**Description:** Total number of streams configured for this channel. Live streams only.
 
 **Example:**
 ```
-dispatcharr_stream_available_streams{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 3
+dispatcharr_stream_available_streams{type="live",channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 3
 ```
 
 **Example queries:**
@@ -732,28 +755,30 @@ dispatcharr_profile_connection_usage{profile_id="3",profile_name="Default",accou
 **Type:** gauge  
 **Value:** Current connection count  
 **Labels:**
-- `channel_uuid` - Channel UUID
-- `channel_number` - Channel number
+- `type` - Stream type: "live" or "vod"
+- `channel_uuid` - Stream identifier
+- `channel_number` - Stream number
 
-**Description:** Current connections for the M3U profile used by this specific stream.
+**Description:** Current connections for the M3U profile used by this specific stream. Only emitted if the stream has an associated profile.
 
 **Example:**
 ```
-dispatcharr_stream_profile_connections{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 0
+dispatcharr_stream_profile_connections{type="live",channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 3
 ```
 
 ### `dispatcharr_stream_profile_max_connections`
 **Type:** gauge  
 **Value:** Maximum allowed connections  
 **Labels:**
-- `channel_uuid` - Channel UUID
-- `channel_number` - Channel number
+- `type` - Stream type: "live" or "vod"
+- `channel_uuid` - Stream identifier
+- `channel_number` - Stream number
 
-**Description:** Maximum allowed connections for the M3U profile used by this stream.
+**Description:** Maximum allowed connections for the M3U profile used by this stream. Only emitted if the stream has an associated profile.
 
 **Example:**
 ```
-dispatcharr_stream_profile_max_connections{channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 0
+dispatcharr_stream_profile_max_connections{type="live",channel_uuid="12572661-bc4b-4937-8501-665c8a4ca1e1",channel_number="1001.0"} 10
 ```
 
 ---
@@ -786,6 +811,8 @@ dispatcharr_active_clients 5
 - `client_id` - Unique client identifier
 - `channel_uuid` - Stream identifier
 - `channel_number` - Stream number (numeric)
+- `user_id` - Dispatcharr user ID (empty string if unauthenticated)
+- `username` - Username (empty string if unauthenticated)
 - `ip_address` - Client IP address
 - `user_agent` - Client user agent string
 - `worker_id` - Dispatcharr worker ID
@@ -795,8 +822,8 @@ dispatcharr_active_clients 5
 
 **Example:**
 ```
-dispatcharr_client_info{type="live",client_id="client_1771267188580_6007",channel_uuid="8c9d9b93-b626-42ce-a82f-2509fd8e606d",channel_number="101.0",ip_address="192.168.1.100",user_agent="VLC/3.0.21 LibVLC/3.0.21",worker_id="7a98b87ad2e3:164"} 1
-dispatcharr_client_info{type="vod",client_id="vod_1771265648474_7145",channel_uuid="vod_1771265648474_7145",channel_number="1771265648474",content_uuid="d6ec6373-dbd2-4a35-a851-712f88e4768c",channel_name="1660 Vine (2022)",content_type="movie",ip_address="192.168.1.121",user_agent="Mozilla/5.0",worker_id="7a98b87ad2e3-164"} 1
+dispatcharr_client_info{type="live",client_id="client_1771267188580_6007",channel_uuid="8c9d9b93-b626-42ce-a82f-2509fd8e606d",channel_number="101.0",user_id="1",username="alice",ip_address="192.168.1.100",user_agent="VLC/3.0.21 LibVLC/3.0.21",worker_id="7a98b87ad2e3:164"} 1
+dispatcharr_client_info{type="vod",client_id="vod_1771265648474_7145",channel_uuid="vod_1771265648474_7145",channel_number="1771265648474",user_id="2",username="bob",content_uuid="d6ec6373-dbd2-4a35-a851-712f88e4768c",channel_name="1660 Vine (2022)",content_type="movie",ip_address="192.168.1.121",user_agent="Mozilla/5.0",worker_id="7a98b87ad2e3-164"} 1
 ```
 
 ### `dispatcharr_client_connection_duration_seconds`
@@ -883,14 +910,28 @@ These metrics expose user account information. Only enable on private networks.
 - `username` - Username
 - `user_level` - Role: `"streamer"` (0), `"standard"` (1), or `"admin"` (10+)
 - `is_staff` - Django staff flag (`"true"` / `"false"`)
-- `date_joined` - Unix timestamp when the account was created
 
 **Description:** Per-user static information. Join with other user metrics on `user_id`.
 
 **Example:**
 ```
-dispatcharr_user_info{user_id="1",username="alice",user_level="admin",is_staff="true",date_joined="1700000000"} 1
-dispatcharr_user_info{user_id="2",username="bob",user_level="streamer",is_staff="false",date_joined="1710000000"} 1
+dispatcharr_user_info{user_id="1",username="alice",user_level="admin",is_staff="true"} 1
+dispatcharr_user_info{user_id="2",username="bob",user_level="streamer",is_staff="false"} 1
+```
+
+### `dispatcharr_user_date_joined_timestamp`
+**Type:** gauge  
+**Value:** Unix timestamp of when the user account was created  
+**Labels:**
+- `user_id` - Dispatcharr user ID
+- `username` - Username
+
+**Description:** Unix timestamp of when the user account was created. Use with `time() - dispatcharr_user_date_joined_timestamp` to calculate account age.
+
+**Example:**
+```
+dispatcharr_user_date_joined_timestamp{user_id="1",username="alice"} 1700000000
+dispatcharr_user_date_joined_timestamp{user_id="2",username="bob"} 1710000000
 ```
 
 ### `dispatcharr_user_stream_limit`
@@ -931,6 +972,9 @@ dispatcharr_user_active_streams / dispatcharr_user_stream_limit > 0
 # Users at or over their stream limit
 dispatcharr_user_active_streams >= dispatcharr_user_stream_limit
   and dispatcharr_user_stream_limit > 0
+
+# Account age in days
+(time() - dispatcharr_user_date_joined_timestamp) / 86400
 ```
 
 ---
