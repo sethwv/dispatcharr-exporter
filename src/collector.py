@@ -1271,6 +1271,8 @@ class PrometheusMetricsCollector:
         metrics = []
         metrics.append("# HELP dispatcharr_user_info Dispatcharr user information")
         metrics.append("# TYPE dispatcharr_user_info gauge")
+        metrics.append("# HELP dispatcharr_user_date_joined_timestamp Unix timestamp of when the user account was created")
+        metrics.append("# TYPE dispatcharr_user_date_joined_timestamp gauge")
         metrics.append("# HELP dispatcharr_user_stream_limit Configured concurrent stream limit for user (0 = unlimited)")
         metrics.append("# TYPE dispatcharr_user_stream_limit gauge")
         metrics.append("# HELP dispatcharr_user_active_streams Current number of active streams for user")
@@ -1326,10 +1328,10 @@ class PrometheusMetricsCollector:
                     f'user_id="{uid}",'
                     f'username="{username_safe}",'
                     f'user_level="{user_level_name}",'
-                    f'is_staff="{is_staff}",'
-                    f'date_joined="{date_joined}"'
+                    f'is_staff="{is_staff}"'
                 )
                 metrics.append(f'dispatcharr_user_info{{{info_labels}}} 1')
+                metrics.append(f'dispatcharr_user_date_joined_timestamp{{user_id="{uid}",username="{username_safe}"}} {date_joined}')
                 metrics.append(f'dispatcharr_user_stream_limit{{user_id="{uid}",username="{username_safe}"}} {user.stream_limit}')
                 metrics.append(f'dispatcharr_user_active_streams{{user_id="{uid}",username="{username_safe}"}} {active_streams_by_user.get(uid, 0)}')
 
